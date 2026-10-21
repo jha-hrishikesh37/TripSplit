@@ -1,6 +1,11 @@
 # TripSplit — Smart Group Trip Expense & Settlement Tracker
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-tripsplit--9ju.pages.dev-success?style=for-the-badge&logo=cloudflarepages)](https://tripsplit-9ju.pages.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
 **TripSplit** is a lightweight, privacy-focused, zero-dependency web application designed to eliminate the friction of splitting expenses during group trips. It runs completely in the browser, requires no account creation or backend server, and automatically calculates the minimum number of transactions needed to settle all debts.
+
+> 🚀 **Live Web App**: [https://tripsplit-9ju.pages.dev/](https://tripsplit-9ju.pages.dev/)
 
 ---
 
@@ -56,8 +61,8 @@
 
 ## 🚀 Getting Started
 
-### Quick Start (No Installation Needed)
-TripSplit requires no build tools or package managers.
+### 💻 Run Locally (No Build Tools Needed)
+If you prefer running it locally on your computer:
 
 1. **Clone or Download** this repository:
    ```bash
@@ -72,10 +77,10 @@ TripSplit requires no build tools or package managers.
      python -m http.server 8000
      ```
 
-### Deploying Online
-Because TripSplit is a static single-page app, you can deploy it for free in seconds on:
+### ☁️ Deploy Your Own Instance
+Because TripSplit is a static single-page app, you can also deploy your own copy for free in seconds on:
+- **Cloudflare Pages / Vercel / Netlify**: Link your GitHub repository with zero configuration.
 - **GitHub Pages**: Push to `main` and enable GitHub Pages in repository settings.
-- **Vercel / Netlify / Cloudflare Pages**: Drag and drop the project folder or link the Git repository.
 
 ---
 

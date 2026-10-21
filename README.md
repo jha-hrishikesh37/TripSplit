@@ -61,10 +61,6 @@
 
 ## 🚀 Getting Started
 
-### 🌐 Use Online (Instant & Free)
-You can use TripSplit immediately on your mobile phone or computer without installing anything:
-👉 **[Launch TripSplit on Cloudflare Pages](https://tripsplit-9ju.pages.dev/)**
-
 ### 💻 Run Locally (No Build Tools Needed)
 If you prefer running it locally on your computer:
 

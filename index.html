@@ -189,6 +189,12 @@
       background: var(--bg-subtle);
     }
 
+    .icon-btn.icon-btn-danger:hover {
+      background: var(--danger-soft);
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+
     /* Trip & Identity Bar */
     .context-bar {
       display: flex;
@@ -520,6 +526,51 @@
       border-color: transparent;
     }
 
+    .btn-xs.primary {
+      color: #fff;
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .btn-xs.primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .icon-btn-xs {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .icon-btn-xs:hover {
+      color: var(--primary);
+      border-color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    .member-avatar-circle {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
     /* Buttons */
     .btn {
       display: inline-flex;
@@ -565,6 +616,10 @@
     .btn-danger {
       background: var(--danger);
       color: #fff;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
     }
 
     .btn-block {
@@ -985,19 +1040,27 @@
           <span>TripSplit</span>
         </div>
         <div class="header-actions no-print">
-          <button type="button" class="icon-btn" id="btnNewTrip" title="Create or Edit Trips">
+          <button type="button" class="icon-btn" id="btnNewTrip" title="Create New Group / Trip">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 5v14M5 12h14" />
             </svg>
           </button>
-          <button type="button" class="icon-btn" id="btnEditTrip" title="Manage Current Trip & Members">
+          <button type="button" class="icon-btn" id="btnEditTrip" title="Manage Current Group & Members">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
               <circle cx="9" cy="7" r="4" />
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </button>
+          <button type="button" class="icon-btn icon-btn-danger" id="btnDeleteTripHeader" title="Delete Current Group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
             </svg>
           </button>
           <button type="button" class="icon-btn" id="btnThemeToggle" title="Toggle Dark/Light Theme">
@@ -1017,6 +1080,11 @@
         <div class="identity-group">
           <span>I am:</span>
           <select id="identitySelect" class="select-pill" aria-label="Select Your Identity"></select>
+          <button type="button" class="icon-btn-xs" id="btnRenameMyIdentity" title="Rename this profile" aria-label="Rename Profile">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -1246,25 +1314,25 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL 2: CREATE / EDIT TRIP & MEMBERS
+       MODAL 2: CREATE / EDIT GROUP & MEMBERS
        ========================================================================== -->
   <div class="modal-backdrop" id="tripModal">
     <div class="modal-panel" role="dialog" aria-labelledby="tripModalTitle">
       <div class="modal-header">
-        <h3 class="modal-title" id="tripModalTitle">Create New Trip</h3>
+        <h3 class="modal-title" id="tripModalTitle">Create New Group</h3>
         <button type="button" class="icon-btn" data-close="tripModal" aria-label="Close">✕</button>
       </div>
       <form id="tripForm" class="modal-body">
         <input type="hidden" id="tripEditMode" value="create" />
 
         <div class="form-group">
-          <label class="form-label" for="tripNameInput">Trip Name *</label>
-          <input type="text" id="tripNameInput" class="form-input" placeholder="e.g., Goa Weekend Getaway, Manali Trek"
+          <label class="form-label" for="tripNameInput">Group Name *</label>
+          <input type="text" id="tripNameInput" class="form-input" placeholder="e.g., Goa Weekend Getaway, Manali Trek, Flatmates"
             required />
         </div>
 
         <div class="form-group">
-          <label class="form-label">Trip Members (First member is Organizer)</label>
+          <label class="form-label">Group Members (First member is Organizer)</label>
           <div style="display:flex; gap:8px; margin-bottom:10px;">
             <input type="text" id="newMemberNameInput" class="form-input" placeholder="Enter friend's name" />
             <button type="button" class="btn btn-secondary" id="btnAddMemberRow">Add</button>
@@ -1273,10 +1341,10 @@
         </div>
       </form>
       <div class="modal-footer" style="justify-content: space-between;">
-        <button type="button" class="btn btn-danger" id="btnDeleteTrip" style="display:none;">Delete Trip</button>
+        <button type="button" class="btn btn-danger" id="btnDeleteTrip" style="display:none;">Delete Group</button>
         <div style="display:flex; gap:8px; margin-left:auto;">
           <button type="button" class="btn btn-secondary" data-close="tripModal">Cancel</button>
-          <button type="submit" form="tripForm" class="btn btn-primary">Save Trip</button>
+          <button type="submit" form="tripForm" class="btn btn-primary" id="btnSaveTrip">Save Group</button>
         </div>
       </div>
     </div>
@@ -1286,13 +1354,22 @@
        MODAL 3: CUSTOM CONFIRMATION DIALOG (Replaces window.confirm)
        ========================================================================== -->
   <div class="modal-backdrop" id="confirmModal">
-    <div class="modal-panel" style="max-width: 400px;" role="dialog">
+    <div class="modal-panel" style="max-width: 420px;" role="dialog" aria-labelledby="confirmModalTitle">
       <div class="modal-header">
-        <h3 class="modal-title" id="confirmModalTitle">Confirm Action</h3>
-        <button type="button" class="icon-btn" data-close="confirmModal">✕</button>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="width:34px; height:34px; border-radius:50%; background:var(--danger-soft); color:var(--danger); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <h3 class="modal-title" id="confirmModalTitle">Confirm Action</h3>
+        </div>
+        <button type="button" class="icon-btn" data-close="confirmModal" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
-        <p id="confirmModalMessage" style="color: var(--text-muted); font-size: 0.95rem;"></p>
+        <div id="confirmModalMessage" style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.5;"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-close="confirmModal">Cancel</button>
@@ -1314,6 +1391,29 @@
         <p class="section-subtitle" id="welcomeTripSubtitle">Select your name below so expenses you add are tagged with
           your identity.</p>
         <div id="welcomeMembersButtons" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 5: RENAME MEMBER MODAL
+       ========================================================================== -->
+  <div class="modal-backdrop" id="renameMemberModal">
+    <div class="modal-panel" style="max-width: 400px;" role="dialog" aria-labelledby="renameMemberModalTitle">
+      <div class="modal-header">
+        <h3 class="modal-title" id="renameMemberModalTitle">Edit Member Name</h3>
+        <button type="button" class="icon-btn" data-close="renameMemberModal" aria-label="Close">✕</button>
+      </div>
+      <form id="renameMemberForm" class="modal-body">
+        <input type="hidden" id="renameMemberId" />
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="renameMemberInput">Member Name *</label>
+          <input type="text" id="renameMemberInput" class="form-input" placeholder="Enter new name" required />
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="renameMemberModal">Cancel</button>
+        <button type="submit" form="renameMemberForm" class="btn btn-primary" id="btnSaveRenameMember">Save Name</button>
       </div>
     </div>
   </div>
@@ -1944,6 +2044,7 @@
       let currentCategoryFilter = 'ALL';
       let currentSplitType = 'EQUAL';
       let tempTripMembers = [];
+      let editingMemberIdx = null;
       let pendingConfirmCallback = null;
 
       // Helper: Get active trip
@@ -1986,9 +2087,12 @@
       }
 
       // Custom Confirmation Modal (No window.confirm)
-      function openConfirmModal(title, message, onConfirm) {
+      function openConfirmModal(title, message, onConfirm, confirmBtnText = 'Confirm', isDanger = true) {
         document.getElementById('confirmModalTitle').textContent = title;
-        document.getElementById('confirmModalMessage').textContent = message;
+        document.getElementById('confirmModalMessage').innerHTML = message;
+        const confirmBtn = document.getElementById('btnConfirmProceed');
+        confirmBtn.textContent = confirmBtnText;
+        confirmBtn.className = isDanger ? 'btn btn-danger' : 'btn btn-primary';
         pendingConfirmCallback = onConfirm;
         document.getElementById('confirmModal').classList.add('open');
       }
@@ -2039,18 +2143,45 @@
         const trip = getActiveTrip();
         renderHeaderSelectors(trip);
 
+        const editBtn = document.getElementById('btnEditTrip');
+        const deleteHeaderBtn = document.getElementById('btnDeleteTripHeader');
+        const renameIdentityBtn = document.getElementById('btnRenameMyIdentity');
+        const fabContainer = document.querySelector('.fab-container');
+
         if (!trip) {
+          if (editBtn) editBtn.style.display = 'none';
+          if (deleteHeaderBtn) deleteHeaderBtn.style.display = 'none';
+          if (renameIdentityBtn) renameIdentityBtn.style.display = 'none';
+          if (fabContainer) fabContainer.style.display = 'none';
+
           document.getElementById('heroSummary').innerHTML = `
-            <div class="empty-state">
-              <div class="empty-icon">🏝️</div>
-              <h3>No active trips found</h3>
-              <p style="margin: 6px 0 14px;">Create a new trip or import a friend's sync code to get started.</p>
-              <button type="button" class="btn btn-primary" onclick="document.getElementById('btnNewTrip').click()">Create First Trip</button>
+            <div class="card empty-state" style="padding:32px 16px; text-align:center;">
+              <div class="empty-icon" style="font-size:2.5rem; margin-bottom:8px;">🏝️</div>
+              <h3 style="font-size:1.2rem; font-weight:700; margin-bottom:6px;">No Active Groups Found</h3>
+              <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:16px;">All groups have been deleted. Create a new group to start tracking expenses.</p>
+              <button type="button" class="btn btn-primary" id="btnCreateFirstTrip" style="display:inline-flex; align-items:center; gap:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span>Create New Group</span>
+              </button>
             </div>
           `;
+          document.getElementById('btnCreateFirstTrip')?.addEventListener('click', () => openTripModal('create'));
           document.getElementById('expensesListContainer').innerHTML = '';
+          document.getElementById('settlementPlanList').innerHTML = '<div class="empty-state" style="padding:20px;">No active group.</div>';
+          document.getElementById('memberBalancesList').innerHTML = '';
+          document.getElementById('settlementProgressBadge').textContent = '0 / 0 Settled';
+          document.getElementById('settlementProgressBar').style.width = '0%';
+          document.getElementById('categorySummaryContainer').innerHTML = '<div class="empty-state" style="padding:20px;">No active group.</div>';
+          document.getElementById('syncCodeOutput').value = '';
           return;
         }
+
+        if (editBtn) editBtn.style.display = 'inline-flex';
+        if (deleteHeaderBtn) deleteHeaderBtn.style.display = 'inline-flex';
+        if (renameIdentityBtn) renameIdentityBtn.style.display = 'inline-flex';
+        if (fabContainer) fabContainer.style.display = 'flex';
 
         const activeMemberId = getActiveMemberId(trip);
         const settlementData = DomainLogic.computeTripSettlement(trip);
@@ -2065,15 +2196,24 @@
       function renderHeaderSelectors(trip) {
         const tripSelect = document.getElementById('tripSelect');
         const activeTrips = appState.trips.filter(t => !t.deleted);
-        tripSelect.innerHTML = activeTrips.map(t =>
-          `<option value="${escapeHtml(t.id)}" ${t.id === trip?.id ? 'selected' : ''}>${escapeHtml(t.name)}</option>`
-        ).join('');
+
+        if (activeTrips.length === 0) {
+          tripSelect.innerHTML = '<option value="">No Groups</option>';
+          tripSelect.disabled = true;
+        } else {
+          tripSelect.disabled = false;
+          tripSelect.innerHTML = activeTrips.map(t =>
+            `<option value="${escapeHtml(t.id)}" ${t.id === trip?.id ? 'selected' : ''}>${escapeHtml(t.name)}</option>`
+          ).join('');
+        }
 
         const identitySelect = document.getElementById('identitySelect');
         if (!trip) {
           identitySelect.innerHTML = '<option>—</option>';
+          identitySelect.disabled = true;
           return;
         }
+        identitySelect.disabled = false;
         const activeMemberId = getActiveMemberId(trip);
         identitySelect.innerHTML = trip.members.map(m => {
           const orgTag = m.id === trip.organizerId ? ' (Organizer)' : '';
@@ -2247,10 +2387,16 @@
           const statusPrefix = isPositive ? '+' : '';
           return `
             <div class="split-member-row">
-              <div>
-                <div style="font-weight:700;">${escapeHtml(st.name)}</div>
-                <div style="font-size:0.75rem; color:var(--text-muted);">
-                  Paid ${DomainLogic.formatPaise(st.paidPaise)} · Share ${DomainLogic.formatPaise(st.sharePaise)}
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="member-avatar-circle">${escapeHtml((st.name || 'M').charAt(0).toUpperCase())}</div>
+                <div>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="font-weight:700;">${escapeHtml(st.name)}</span>
+                    <button type="button" class="btn-xs no-print" data-rename-member="${escapeHtml(st.memberId)}" title="Edit Name" style="padding:1px 6px; font-size:0.68rem;">Edit</button>
+                  </div>
+                  <div style="font-size:0.75rem; color:var(--text-muted);">
+                    Paid ${DomainLogic.formatPaise(st.paidPaise)} · Share ${DomainLogic.formatPaise(st.sharePaise)}
+                  </div>
                 </div>
               </div>
               <div style="text-align:right;">
@@ -2509,20 +2655,24 @@
       }
 
       /* ========================================================================
-         TRIP MODAL (CREATE / EDIT TRIP & MEMBERS)
+         TRIP / GROUP MODAL (CREATE / EDIT GROUP & MEMBERS)
          ======================================================================== */
       function openTripModal(mode = 'create') {
         const trip = getActiveTrip();
+        if (mode === 'edit' && !trip) {
+          mode = 'create';
+        }
+        editingMemberIdx = null;
         document.getElementById('tripEditMode').value = mode;
         const deleteBtn = document.getElementById('btnDeleteTrip');
 
         if (mode === 'edit' && trip) {
-          document.getElementById('tripModalTitle').textContent = 'Edit Trip & Members';
+          document.getElementById('tripModalTitle').textContent = 'Edit Group & Members';
           document.getElementById('tripNameInput').value = trip.name;
           tempTripMembers = JSON.parse(JSON.stringify(trip.members));
           deleteBtn.style.display = 'inline-flex';
         } else {
-          document.getElementById('tripModalTitle').textContent = 'Create New Trip';
+          document.getElementById('tripModalTitle').textContent = 'Create New Group';
           document.getElementById('tripNameInput').value = '';
           tempTripMembers = [
             { id: StorageService.generateId('mem'), name: 'Me (Organizer)', isOrganizer: true }
@@ -2536,18 +2686,92 @@
 
       function renderTripMembersEditor() {
         const list = document.getElementById('tripMembersListEditor');
-        list.innerHTML = tempTripMembers.map((m, idx) => `
-          <div class="split-member-row">
-            <input type="text" class="form-input temp-member-name" data-idx="${idx}" value="${escapeHtml(m.name)}" style="padding:6px 10px;" required />
-            <span class="badge ${idx === 0 ? 'badge-primary' : ''}">${idx === 0 ? 'Organizer' : 'Member'}</span>
-            ${idx > 0 ? `<button type="button" class="btn-xs danger" data-remove-mem="${idx}">Remove</button>` : ''}
-          </div>
-        `).join('');
+        if (!tempTripMembers || tempTripMembers.length === 0) {
+          list.innerHTML = `<div style="padding:12px; color:var(--text-muted); font-size:0.85rem; text-align:center;">No members added yet.</div>`;
+          return;
+        }
 
-        list.querySelectorAll('.temp-member-name').forEach(inp => {
-          inp.addEventListener('input', (e) => {
-            const i = Number(e.target.dataset.idx);
-            tempTripMembers[i].name = e.target.value;
+        list.innerHTML = tempTripMembers.map((m, idx) => {
+          const isEditing = editingMemberIdx === idx;
+          const isOrganizer = idx === 0;
+
+          if (isEditing) {
+            return `
+              <div class="split-member-row" style="background:var(--bg-subtle);">
+                <input type="text" class="form-input member-inline-input" data-idx="${idx}" value="${escapeHtml(m.name)}" placeholder="Member name" style="padding:6px 10px; flex:1; min-width:120px;" required />
+                <div style="display:flex; gap:6px; flex-shrink:0;">
+                  <button type="button" class="btn-xs primary" data-save-inline-mem="${idx}">Save</button>
+                  <button type="button" class="btn-xs" data-cancel-inline-mem="${idx}">Cancel</button>
+                </div>
+              </div>
+            `;
+          }
+
+          return `
+            <div class="split-member-row">
+              <div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
+                <div class="member-avatar-circle">${escapeHtml((m.name || 'M').charAt(0).toUpperCase())}</div>
+                <strong class="member-display-name" style="font-size:0.9rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${escapeHtml(m.name)}</strong>
+                <span class="badge ${isOrganizer ? 'badge-primary' : ''}">${isOrganizer ? 'Organizer' : 'Member'}</span>
+              </div>
+              <div style="display:flex; gap:6px; flex-shrink:0;">
+                <button type="button" class="btn-xs" data-edit-inline-mem="${idx}" title="Edit Name">Edit</button>
+                ${!isOrganizer ? `<button type="button" class="btn-xs danger" data-remove-mem="${idx}" title="Remove Member">Remove</button>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Wire up inline input if editing
+        const inlineInput = list.querySelector('.member-inline-input');
+        if (inlineInput) {
+          inlineInput.focus();
+          inlineInput.select();
+          inlineInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              const val = inlineInput.value.trim();
+              if (val) {
+                tempTripMembers[editingMemberIdx].name = val;
+                editingMemberIdx = null;
+                renderTripMembersEditor();
+              } else {
+                showToast('Member name cannot be empty.');
+              }
+            } else if (e.key === 'Escape') {
+              editingMemberIdx = null;
+              renderTripMembersEditor();
+            }
+          });
+        }
+
+        list.querySelectorAll('[data-edit-inline-mem]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            editingMemberIdx = Number(btn.dataset.editInlineMem);
+            renderTripMembersEditor();
+          });
+        });
+
+        list.querySelectorAll('[data-save-inline-mem]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const idx = Number(btn.dataset.saveInlineMem);
+            const inp = list.querySelector(`.member-inline-input[data-idx="${idx}"]`);
+            const val = inp ? inp.value.trim() : '';
+            if (val) {
+              tempTripMembers[idx].name = val;
+              editingMemberIdx = null;
+              renderTripMembersEditor();
+              showToast('Member name updated.');
+            } else {
+              showToast('Member name cannot be empty.');
+            }
+          });
+        });
+
+        list.querySelectorAll('[data-cancel-inline-mem]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            editingMemberIdx = null;
+            renderTripMembersEditor();
           });
         });
 
@@ -2555,6 +2779,7 @@
           btn.addEventListener('click', () => {
             const i = Number(btn.dataset.removeMem);
             tempTripMembers.splice(i, 1);
+            if (editingMemberIdx === i) editingMemberIdx = null;
             renderTripMembersEditor();
           });
         });
@@ -2570,7 +2795,7 @@
           .filter(m => m.name.length > 0);
 
         if (!name) {
-          showToast('Please enter a trip name.');
+          showToast('Please enter a group name.');
           return;
         }
         if (cleanedMembers.length < 2) {
@@ -2586,7 +2811,7 @@
             trip.members = cleanedMembers;
             trip.organizerId = cleanedMembers[0].id;
             trip.updatedAt = now;
-            showToast('Trip updated!');
+            showToast('Group updated!');
           }
         } else {
           const newTripId = StorageService.generateId('trip');
@@ -2605,7 +2830,7 @@
           appState.trips.push(newTrip);
           appState.activeTripId = newTripId;
           appState.activeIdentities[newTripId] = cleanedMembers[0].id;
-          showToast('New trip created!');
+          showToast('New group created!');
         }
 
         StorageService.saveState(appState);
@@ -2877,23 +3102,106 @@
           renderTripMembersEditor();
         });
 
+        document.getElementById('newMemberNameInput').addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('btnAddMemberRow').click();
+          }
+        });
+
         document.getElementById('tripForm').addEventListener('submit', handleSaveTrip);
 
-        document.getElementById('btnDeleteTrip').addEventListener('click', () => {
+        function confirmDeleteCurrentGroup() {
           const trip = getActiveTrip();
           if (!trip) return;
+
+          const activeExpenseCount = (trip.expenses || []).filter(e => !e.deleted).length;
+          const memberCount = (trip.members || []).length;
+          const details = activeExpenseCount > 0
+            ? `It currently has <strong>${activeExpenseCount} expense${activeExpenseCount === 1 ? '' : 's'}</strong> and <strong>${memberCount} member${memberCount === 1 ? '' : 's'}</strong>.`
+            : `It currently has <strong>${memberCount} member${memberCount === 1 ? '' : 's'}</strong>.`;
+
           openConfirmModal(
-            'Delete Trip?',
-            `Are you sure you want to delete "${trip.name}"?`,
+            'Delete Group?',
+            `<p style="margin-bottom:8px; font-weight:600; color:var(--text-main);">Are you sure you want to delete "${escapeHtml(trip.name)}"?</p>
+             <p style="font-size:0.875rem; color:var(--text-muted); line-height:1.45;">${details} All expenses, settlement checklists, and member records in this group will be deleted. This action cannot be undone.</p>`,
             () => {
               trip.deleted = true;
               trip.updatedAt = Date.now();
+              const remainingTrips = appState.trips.filter(t => !t.deleted);
+              if (remainingTrips.length > 0) {
+                appState.activeTripId = remainingTrips[0].id;
+              } else {
+                appState.activeTripId = null;
+              }
               StorageService.saveState(appState);
               document.getElementById('tripModal').classList.remove('open');
               renderAll();
-              showToast('Trip deleted.');
-            }
+              showToast(`Group "${trip.name}" deleted.`);
+            },
+            'Delete Group',
+            true
           );
+        }
+
+        document.getElementById('btnDeleteTripHeader').addEventListener('click', confirmDeleteCurrentGroup);
+        document.getElementById('btnDeleteTrip').addEventListener('click', confirmDeleteCurrentGroup);
+
+        function openRenameMemberModal(memberId) {
+          const trip = getActiveTrip();
+          if (!trip) return;
+          const member = (trip.members || []).find(m => m.id === memberId);
+          if (!member) return;
+
+          document.getElementById('renameMemberId').value = member.id;
+          const inp = document.getElementById('renameMemberInput');
+          inp.value = member.name;
+          document.getElementById('renameMemberModalTitle').textContent = `Edit Member Name`;
+          document.getElementById('renameMemberModal').classList.add('open');
+          setTimeout(() => {
+            inp.focus();
+            inp.select();
+          }, 50);
+        }
+
+        function handleSaveRenameMember(e) {
+          e.preventDefault();
+          const trip = getActiveTrip();
+          if (!trip) return;
+          const memberId = document.getElementById('renameMemberId').value;
+          const newName = document.getElementById('renameMemberInput').value.trim();
+
+          if (!newName) {
+            showToast('Please enter a valid member name.');
+            return;
+          }
+
+          const member = (trip.members || []).find(m => m.id === memberId);
+          if (member) {
+            const oldName = member.name;
+            member.name = newName;
+            trip.updatedAt = Date.now();
+            StorageService.saveState(appState);
+            document.getElementById('renameMemberModal').classList.remove('open');
+            renderAll();
+            showToast(`Renamed "${oldName}" to "${newName}"`);
+          }
+        }
+
+        document.getElementById('renameMemberForm').addEventListener('submit', handleSaveRenameMember);
+
+        document.getElementById('btnRenameMyIdentity').addEventListener('click', () => {
+          const trip = getActiveTrip();
+          if (!trip) return;
+          const activeMemberId = getActiveMemberId(trip);
+          if (activeMemberId) openRenameMemberModal(activeMemberId);
+        });
+
+        document.getElementById('memberBalancesList').addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-rename-member]');
+          if (btn) {
+            openRenameMemberModal(btn.dataset.renameMember);
+          }
         });
 
         // Settle-Up Mark Paid / Undo Delegation
@@ -3052,15 +3360,44 @@
         // Close Modal Buttons & Confirm Proceed
         document.querySelectorAll('[data-close]').forEach(btn => {
           btn.addEventListener('click', () => {
-            document.getElementById(btn.dataset.close).classList.remove('open');
+            const targetId = btn.dataset.close;
+            const target = document.getElementById(targetId);
+            if (target) target.classList.remove('open');
+            if (targetId === 'confirmModal') {
+              pendingConfirmCallback = null;
+            }
           });
+        });
+
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+          backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) {
+              backdrop.classList.remove('open');
+              if (backdrop.id === 'confirmModal') {
+                pendingConfirmCallback = null;
+              }
+            }
+          });
+        });
+
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            const openModal = document.querySelector('.modal-backdrop.open');
+            if (openModal) {
+              openModal.classList.remove('open');
+              if (openModal.id === 'confirmModal') {
+                pendingConfirmCallback = null;
+              }
+            }
+          }
         });
 
         document.getElementById('btnConfirmProceed').addEventListener('click', () => {
           document.getElementById('confirmModal').classList.remove('open');
           if (typeof pendingConfirmCallback === 'function') {
-            pendingConfirmCallback();
+            const cb = pendingConfirmCallback;
             pendingConfirmCallback = null;
+            cb();
           }
         });
       }

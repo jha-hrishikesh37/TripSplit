@@ -1984,9 +1984,9 @@
         const creditors = [];
 
         Object.values(statsByMember).forEach(st => {
-          if (st.expenseNetPaise < -1) {
+          if (st.expenseNetPaise < 0) {
             debtors.push({ memberId: st.memberId, amount: -st.expenseNetPaise });
-          } else if (st.expenseNetPaise > 1) {
+          } else if (st.expenseNetPaise > 0) {
             creditors.push({ memberId: st.memberId, amount: st.expenseNetPaise });
           }
         });
@@ -2009,7 +2009,9 @@
             const savedRecord = (trip.settlements || []).find(
               s => s.id === settlementKey && !s.deleted
             );
-            const isSettled = Boolean(savedRecord && savedRecord.settled);
+            const amountMatches = !savedRecord?.amountPaise || savedRecord.amountPaise === transferPaise;
+            const isSettled = Boolean(savedRecord && savedRecord.settled && amountMatches);
+            const isStaleAmount = Boolean(savedRecord && savedRecord.settled && !amountMatches);
 
             transactions.push({
               id: settlementKey,
@@ -2017,6 +2019,7 @@
               toId: creditor.memberId,
               amountPaise: transferPaise,
               settled: isSettled,
+              isStaleAmount,
               settledAt: savedRecord?.updatedAt || null
             });
           }
@@ -2386,11 +2389,11 @@
                     <strong>${escapeHtml(toName)}</strong>
                   </div>
                   <div style="font-size:0.76rem; color:var(--text-muted); margin-top:2px;">
-                    ${tx.settled ? '✅ Marked as Settled' : '⏳ Pending Payment'}
+                    ${tx.settled ? '✅ Marked as Settled' : (tx.isStaleAmount ? '⚠️ Amount changed since marked paid — please re-verify' : '⏳ Pending Payment')}
                   </div>
                 </div>
                 <div style="display:flex; align-items:center; gap:10px;">
-                  <strong style="font-size:1.05rem;">${DomainLogic.formatPaise(tx.amountPaise)}</strong>
+                  <strong style="font-size:1.05rem;">${DomainLogic.formatPaise(tx.amountPaise)}</strong>${tx.amountPaise < 100 ? '<span class="badge" style="margin-left:4px;">rounding</span>' : ''}
                   <button type="button" class="btn-xs no-print" data-toggle-settle="${escapeHtml(tx.id)}">
                     ${tx.settled ? 'Undo' : 'Mark Paid'}
                   </button>
@@ -3354,15 +3357,24 @@
           const now = Date.now();
           if (!Array.isArray(trip.settlements)) trip.settlements = [];
 
+          const tx = DomainLogic.computeTripSettlement(trip).transactions.find(t => t.id === setId);
+
           const existing = trip.settlements.find(s => s.id === setId);
           if (existing) {
-            existing.settled = !existing.settled;
+            if (existing.settled && existing.amountPaise && tx && existing.amountPaise !== tx.amountPaise) {
+              existing.settled = true;
+              existing.amountPaise = tx.amountPaise;
+            } else {
+              existing.settled = !existing.settled;
+              existing.amountPaise = tx ? tx.amountPaise : 0;
+            }
             existing.updatedAt = now;
             existing.deleted = false;
           } else {
             trip.settlements.push({
               id: setId,
               settled: true,
+              amountPaise: tx ? tx.amountPaise : 0,
               createdAt: now,
               updatedAt: now,
               deleted: false

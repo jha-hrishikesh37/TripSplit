@@ -1080,8 +1080,10 @@
         <div class="identity-group">
           <span>I am:</span>
           <select id="identitySelect" class="select-pill" aria-label="Select Your Identity"></select>
-          <button type="button" class="icon-btn-xs" id="btnRenameMyIdentity" title="Rename this profile" aria-label="Rename Profile">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <button type="button" class="icon-btn-xs" id="btnRenameMyIdentity" title="Rename this profile"
+            aria-label="Rename Profile">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
             </svg>
           </button>
@@ -1327,8 +1329,8 @@
 
         <div class="form-group">
           <label class="form-label" for="tripNameInput">Group Name *</label>
-          <input type="text" id="tripNameInput" class="form-input" placeholder="e.g., Goa Weekend Getaway, Manali Trek, Flatmates"
-            required />
+          <input type="text" id="tripNameInput" class="form-input"
+            placeholder="e.g., Goa Weekend Getaway, Manali Trek, Flatmates" required />
         </div>
 
         <div class="form-group">
@@ -1357,11 +1359,13 @@
     <div class="modal-panel" style="max-width: 420px;" role="dialog" aria-labelledby="confirmModalTitle">
       <div class="modal-header">
         <div style="display:flex; align-items:center; gap:10px;">
-          <div style="width:34px; height:34px; border-radius:50%; background:var(--danger-soft); color:var(--danger); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
+          <div
+            style="width:34px; height:34px; border-radius:50%; background:var(--danger-soft); color:var(--danger); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
           <h3 class="modal-title" id="confirmModalTitle">Confirm Action</h3>
@@ -1413,7 +1417,8 @@
       </form>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-close="renameMemberModal">Cancel</button>
-        <button type="submit" form="renameMemberForm" class="btn btn-primary" id="btnSaveRenameMember">Save Name</button>
+        <button type="submit" form="renameMemberForm" class="btn btn-primary" id="btnSaveRenameMember">Save
+          Name</button>
       </div>
     </div>
   </div>
@@ -1467,7 +1472,7 @@
       function decodePayloadFromBase64(rawInput) {
         let cleaned = rawInput.trim();
         // Extract code if user pasted a full URL containing #sync=... or ?sync=...
-        const syncParamMatch = cleaned.match(/[?#&]sync=([A-Za-z0-9+/=_:-]+)/);
+        const syncParamMatch = cleaned.match(/[?#&]sync=([A-Za-z0-9+/=_:%-]+)/);
         if (syncParamMatch) {
           cleaned = decodeURIComponent(syncParamMatch[1]);
         }
@@ -1646,6 +1651,21 @@
         }
 
         const incomingTrip = payload.trip;
+        if (!Array.isArray(incomingTrip.members) || incomingTrip.members.length === 0) {
+          throw new Error('Sync payload is missing valid group members.');
+        }
+        incomingTrip.expenses = (Array.isArray(incomingTrip.expenses) ? incomingTrip.expenses : []).filter(exp =>
+          exp && typeof exp.id === 'string' &&
+          Number.isFinite(Number(exp.amountPaise)) && Number(exp.amountPaise) > 0 &&
+          Array.isArray(exp.splits)
+        ).map(exp => ({
+          ...exp,
+          amountPaise: Math.round(Number(exp.amountPaise)),
+          splits: exp.splits.map(s => ({
+            ...s,
+            amountPaise: Math.round(Number(s.amountPaise || 0))
+          }))
+        }));
         const localTripIndex = state.trips.findIndex(t => t.id === incomingTrip.id);
 
         let stats = {
@@ -1747,6 +1767,9 @@
         const restoredState = parsed.state || parsed;
         if (!restoredState || !Array.isArray(restoredState.trips)) {
           throw new Error('Invalid backup file format.');
+        }
+        if (!restoredState.activeIdentities || typeof restoredState.activeIdentities !== 'object') {
+          restoredState.activeIdentities = {};
         }
         saveState(restoredState);
         return restoredState;
@@ -1864,47 +1887,64 @@
         }
 
         if (splitType === 'PERCENT') {
-          // Work in basis points (100% = 10000 bps) for precision
-          let totalPercent = 0;
+          let totalBps = 0;
+          let hasNegative = false;
           activeMembers.forEach(m => {
-            totalPercent += Number(m.rawValue || 0);
+            const val = Number(m.rawValue || 0);
+            if (val < 0 || !Number.isFinite(val)) hasNegative = true;
+            totalBps += Math.round(val * 100);
           });
 
-          const isPercentValid = Math.abs(totalPercent - 100) < 0.01;
+          if (hasNegative) {
+            return {
+              isValid: false,
+              allocatedPaise: 0,
+              diffPaise: 0,
+              totalPercent: 0,
+              splits: [],
+              message: 'Percentages cannot be negative'
+            };
+          }
+
+          const isPercentValid = totalBps === 10000;
           let runningPaise = 0;
 
-          const splits = activeMembers.map((m, idx) => {
-            const pct = Number(m.rawValue || 0);
-            const rawShare = Math.floor((totalPaise * pct) / 100);
-            runningPaise += rawShare;
+          const rawItems = activeMembers.map((m, idx) => {
+            const bps = Math.round(Number(m.rawValue || 0) * 100);
+            const exactNumerator = totalPaise * bps;
+            const baseShare = Math.floor(exactNumerator / 10000);
+            const remainder = exactNumerator % 10000;
+            runningPaise += baseShare;
             return {
-              memberId: m.memberId,
-              amountPaise: rawShare,
-              metaValue: pct
+              idx,
+              remainder,
+              split: {
+                memberId: m.memberId,
+                amountPaise: baseShare,
+                metaValue: bps / 100
+              }
             };
           });
 
-          // Distribute rounding paise remainder to the first members if percentages sum to 100%
-          if (isPercentValid && splits.length > 0) {
-            let rem = totalPaise - runningPaise;
-            let i = 0;
-            while (rem > 0) {
-              splits[i % splits.length].amountPaise += 1;
-              rem--;
-              i++;
+          if (isPercentValid && rawItems.length > 0) {
+            let remPaise = totalPaise - runningPaise;
+            const byRemainder = [...rawItems].sort((a, b) => b.remainder - a.remainder || a.idx - b.idx);
+            for (let i = 0; i < remPaise && i < byRemainder.length; i++) {
+              byRemainder[i].split.amountPaise += 1;
             }
             runningPaise = totalPaise;
           }
 
+          const totalPercent = totalBps / 100;
           return {
             isValid: isPercentValid,
             allocatedPaise: runningPaise,
-            diffPaise: Math.round((totalPercent - 100) * 100),
-            totalPercent: Math.round(totalPercent * 100) / 100,
-            splits,
+            diffPaise: totalBps - 10000,
+            totalPercent,
+            splits: rawItems.map(item => item.split),
             message: isPercentValid
               ? 'Percentages total 100%'
-              : `Total is ${totalPercent.toFixed(1)}% (must be 100%)`
+              : `Total is ${totalPercent.toFixed(2)}% (must be 100%)`
           };
         }
 
@@ -1962,9 +2002,9 @@
         const creditors = [];
 
         Object.values(statsByMember).forEach(st => {
-          if (st.expenseNetPaise < -1) {
+          if (st.expenseNetPaise < 0) {
             debtors.push({ memberId: st.memberId, amount: -st.expenseNetPaise });
-          } else if (st.expenseNetPaise > 1) {
+          } else if (st.expenseNetPaise > 0) {
             creditors.push({ memberId: st.memberId, amount: st.expenseNetPaise });
           }
         });
@@ -1987,7 +2027,9 @@
             const savedRecord = (trip.settlements || []).find(
               s => s.id === settlementKey && !s.deleted
             );
-            const isSettled = Boolean(savedRecord && savedRecord.settled);
+            const amountMatches = !savedRecord?.amountPaise || savedRecord.amountPaise === transferPaise;
+            const isSettled = Boolean(savedRecord && savedRecord.settled && amountMatches);
+            const isStaleAmount = Boolean(savedRecord && savedRecord.settled && !amountMatches);
 
             transactions.push({
               id: settlementKey,
@@ -1995,6 +2037,7 @@
               toId: creditor.memberId,
               amountPaise: transferPaise,
               settled: isSettled,
+              isStaleAmount,
               settledAt: savedRecord?.updatedAt || null
             });
           }
@@ -2307,7 +2350,7 @@
                   <div class="exp-meta">
                     <span>Paid by <strong>${escapeHtml(payerName)}</strong></span>
                     <span>•</span>
-                    <span>Split (${exp.splitType.toLowerCase()}) among ${splitCount}</span>
+                    <span>Split (${escapeHtml(String(exp.splitType || '').toLowerCase())}) among ${splitCount}</span>
                     <span>•</span>
                     <span>${escapeHtml(exp.date)}</span>
                   </div>
@@ -2364,11 +2407,11 @@
                     <strong>${escapeHtml(toName)}</strong>
                   </div>
                   <div style="font-size:0.76rem; color:var(--text-muted); margin-top:2px;">
-                    ${tx.settled ? '✅ Marked as Settled' : '⏳ Pending Payment'}
+                    ${tx.settled ? '✅ Marked as Settled' : (tx.isStaleAmount ? '⚠️ Amount changed since marked paid — please re-verify' : '⏳ Pending Payment')}
                   </div>
                 </div>
                 <div style="display:flex; align-items:center; gap:10px;">
-                  <strong style="font-size:1.05rem;">${DomainLogic.formatPaise(tx.amountPaise)}</strong>
+                  <strong style="font-size:1.05rem;">${DomainLogic.formatPaise(tx.amountPaise)}</strong>${tx.amountPaise < 100 ? '<span class="badge" style="margin-left:4px;">rounding</span>' : ''}
                   <button type="button" class="btn-xs no-print" data-toggle-settle="${escapeHtml(tx.id)}">
                     ${tx.settled ? 'Undo' : 'Mark Paid'}
                   </button>
@@ -2476,7 +2519,7 @@
         document.getElementById('expAmount').value = existingExp ? (existingExp.amountPaise / CONFIG.CURRENCY.SUBUNITS).toFixed(2) : '';
         document.getElementById('expCategory').value = existingExp ? existingExp.category : 'Food';
         document.getElementById('expPaidBy').value = existingExp ? existingExp.paidBy : activeMemberId;
-        document.getElementById('expDate').value = existingExp ? existingExp.date : new Date().toISOString().split('T')[0];
+        document.getElementById('expDate').value = existingExp ? existingExp.date : getLocalTodayStr();
 
         currentSplitType = existingExp ? existingExp.splitType : 'EQUAL';
         updateSplitTypeTabsUI();
@@ -2492,19 +2535,30 @@
         });
       }
 
-      function renderSplitMemberInputs(trip, existingExp = null) {
+      function renderSplitMemberInputs(trip, existingExp = null, preservedCheckedIds = null) {
         const container = document.getElementById('splitMembersContainer');
-        const defaultPercent = (100 / trip.members.length).toFixed(2);
-
-        container.innerHTML = trip.members.map(m => {
+        const checkedList = trip.members.map(m => {
+          if (preservedCheckedIds) return preservedCheckedIds.has(m.id);
           const savedSplit = existingExp?.splits?.find(s => s.memberId === m.id);
-          const isChecked = existingExp ? Boolean(savedSplit) : true;
+          return existingExp ? Boolean(savedSplit) : true;
+        });
+        const activeCount = checkedList.filter(Boolean).length || 1;
+        const baseBps = Math.floor(10000 / activeCount);
+        const extraBps = 10000 - (baseBps * activeCount);
+        let activeIdx = 0;
+
+        container.innerHTML = trip.members.map((m, idx) => {
+          const savedSplit = existingExp?.splits?.find(s => s.memberId === m.id);
+          const isChecked = checkedList[idx];
           let inputVal = '';
 
           if (currentSplitType === 'EXACT') {
             inputVal = savedSplit ? (savedSplit.amountPaise / CONFIG.CURRENCY.SUBUNITS).toFixed(2) : '';
           } else if (currentSplitType === 'PERCENT') {
-            inputVal = savedSplit && savedSplit.metaValue !== undefined ? savedSplit.metaValue : (isChecked ? defaultPercent : '0');
+            const myDefaultPct = isChecked ? ((baseBps + (activeIdx++ < extraBps ? 1 : 0)) / 100).toFixed(2) : '0.00';
+            inputVal = (savedSplit && existingExp?.splitType === 'PERCENT' && savedSplit.metaValue !== undefined)
+              ? Number(savedSplit.metaValue).toFixed(2)
+              : myDefaultPct;
           }
 
           return `
@@ -2518,7 +2572,7 @@
               ` : `
                 <div class="split-input-wrap">
                   <input type="number" class="form-input split-member-val" data-val-for="${escapeHtml(m.id)}"
-                    step="0.01" min="0" value="${inputVal}" placeholder="${currentSplitType === 'EXACT' ? '0.00' : '0%'}"
+                    step="0.01" min="0" value="${inputVal}" placeholder="${currentSplitType === 'EXACT' ? '0.00' : '0.00'}"
                     style="padding:6px 8px; font-size:0.85rem;" />
                   <span style="font-size:0.8rem; color:var(--text-muted);">${currentSplitType === 'EXACT' ? CONFIG.CURRENCY.SYMBOL : '%'}</span>
                 </div>
@@ -2530,6 +2584,75 @@
         container.querySelectorAll('input').forEach(inp => {
           inp.addEventListener('input', updateLiveSplitCheck);
           inp.addEventListener('change', updateLiveSplitCheck);
+        });
+
+        // Deselecting/selecting members in PERCENT split
+        container.querySelectorAll('.split-member-check').forEach(cb => {
+          cb.addEventListener('change', () => {
+            if (currentSplitType === 'PERCENT') {
+              const row = cb.closest('[data-member-row]');
+              const valInput = row ? row.querySelector('.split-member-val') : null;
+              const checkedRows = Array.from(container.querySelectorAll('.split-member-row'))
+                .filter(r => r.querySelector('.split-member-check').checked);
+
+              if (!cb.checked) {
+                // Deselecting a member: divide its percent value between remaining checked members
+                const valBps = valInput ? Math.round(Number(valInput.value || 0) * 100) : 0;
+                if (valInput) valInput.value = '0.00';
+
+                if (checkedRows.length > 0 && valBps > 0) {
+                  const count = checkedRows.length;
+                  const baseAdd = Math.floor(valBps / count);
+                  const extraAdd = valBps % count;
+
+                  const sorted = checkedRows.map(r => {
+                    const inp = r.querySelector('.split-member-val');
+                    return { r, inp, bps: Math.round(Number(inp?.value || 0) * 100) };
+                  }).sort((a, b) => a.bps - b.bps);
+
+                  sorted.forEach((item, idx) => {
+                    if (item.inp) {
+                      const extra = idx < extraAdd ? 1 : 0;
+                      const newBps = item.bps + baseAdd + extra;
+                      item.inp.value = (newBps / 100).toFixed(2);
+                    }
+                  });
+                }
+              } else {
+                // Selecting a member in percent split: redistribute 100% equally among all checked members
+                const count = checkedRows.length || 1;
+                const baseBps = Math.floor(10000 / count);
+                const extraBps = 10000 - (baseBps * count);
+                let activeIdx = 0;
+
+                container.querySelectorAll('.split-member-row').forEach(r => {
+                  const isChk = r.querySelector('.split-member-check').checked;
+                  const inp = r.querySelector('.split-member-val');
+                  if (inp) {
+                    if (isChk) {
+                      inp.value = ((baseBps + (activeIdx++ < extraBps ? 1 : 0)) / 100).toFixed(2);
+                    } else {
+                      inp.value = '0.00';
+                    }
+                  }
+                });
+              }
+            }
+            updateLiveSplitCheck();
+          });
+        });
+
+        // Ensure entered percentages always format to two floating points on blur
+        container.querySelectorAll('.split-member-val').forEach(inp => {
+          inp.addEventListener('blur', () => {
+            if (currentSplitType === 'PERCENT') {
+              const val = parseFloat(inp.value);
+              if (!isNaN(val) && inp.value.trim() !== '') {
+                inp.value = val.toFixed(2);
+                updateLiveSplitCheck();
+              }
+            }
+          });
         });
       }
 
@@ -2571,7 +2694,7 @@
         msgEl.textContent = result.message;
 
         if (currentSplitType === 'PERCENT') {
-          mathEl.textContent = `${result.totalPercent || 0}% / 100%`;
+          mathEl.textContent = `${(result.totalPercent || 0).toFixed(2)}% / 100.00%`;
         } else {
           mathEl.textContent = `${DomainLogic.formatPaise(result.allocatedPaise)} / ${DomainLogic.formatPaise(totalPaise)}`;
         }
@@ -2616,6 +2739,7 @@
               showToast('Only the creator or trip organizer can edit this expense.');
               return;
             }
+            const safeUpdatedAt = Math.max(now, (trip.expenses[idx].updatedAt || 0) + 1);
             trip.expenses[idx] = {
               ...trip.expenses[idx],
               title,
@@ -2625,8 +2749,9 @@
               date,
               splitType: currentSplitType,
               splits: splitCalc.splits,
-              updatedAt: now
+              updatedAt: safeUpdatedAt
             };
+            trip.updatedAt = safeUpdatedAt;
           }
           showToast('Expense updated!');
         } else {
@@ -2645,10 +2770,9 @@
             updatedAt: now,
             deleted: false
           });
+          trip.updatedAt = now;
           showToast('Expense added!');
         }
-
-        trip.updatedAt = now;
         StorageService.saveState(appState);
         document.getElementById('expenseModal').classList.remove('open');
         renderAll();
@@ -2778,6 +2902,15 @@
         list.querySelectorAll('[data-remove-mem]').forEach(btn => {
           btn.addEventListener('click', () => {
             const i = Number(btn.dataset.removeMem);
+            const memId = tempTripMembers[i]?.id;
+            const trip = getActiveTrip();
+            const hasExpenses = (trip?.expenses || []).some(e =>
+              !e.deleted && (e.paidBy === memId || (e.splits || []).some(s => s.memberId === memId))
+            );
+            if (hasExpenses) {
+              showToast('Cannot remove a member who is part of existing expenses.');
+              return;
+            }
             tempTripMembers.splice(i, 1);
             if (editingMemberIdx === i) editingMemberIdx = null;
             renderTripMembersEditor();
@@ -2938,6 +3071,11 @@
           .replace(/'/g, '&#039;');
       }
 
+      function getLocalTodayStr() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
       // Prompt user to pick "I am <name>" after importing a trip link/code
       function promptIdentitySelection(tripId) {
         const trip = appState.trips.find(t => t.id === tripId && !t.deleted);
@@ -3048,9 +3186,14 @@
             const exp = (trip?.expenses || []).find(x => x.id === expId);
             if (!exp) return;
 
+            if (!DomainLogic.canModifyExpense(trip, exp, getActiveMemberId(trip))) {
+              showToast('Only the creator or organizer can delete this expense.');
+              return;
+            }
+
             openConfirmModal(
               'Delete Expense?',
-              `Are you sure you want to delete "${exp.title}" (${DomainLogic.formatPaise(exp.amountPaise)})? This deletion will also sync when merged.`,
+              `Are you sure you want to delete "${escapeHtml(exp.title)}" (${DomainLogic.formatPaise(exp.amountPaise)})? This deletion will also sync when merged.`,
               () => {
                 exp.deleted = true;
                 exp.updatedAt = Date.now();
@@ -3070,7 +3213,12 @@
             updateSplitTypeTabsUI();
             const trip = getActiveTrip();
             if (trip) {
-              renderSplitMemberInputs(trip, null);
+              const prevChecked = new Set(
+                Array.from(document.querySelectorAll('.split-member-check:checked')).map(cb => cb.value)
+              );
+              const expId = document.getElementById('expId').value;
+              const existingExp = expId ? (trip.expenses || []).find(e => e.id === expId && !e.deleted) : null;
+              renderSplitMemberInputs(trip, existingExp, prevChecked.size > 0 ? prevChecked : null);
               updateLiveSplitCheck();
             }
           });
@@ -3080,6 +3228,19 @@
 
         document.getElementById('btnSelectAllMembers').addEventListener('click', () => {
           document.querySelectorAll('.split-member-check').forEach(cb => { cb.checked = true; });
+          if (currentSplitType === 'PERCENT') {
+            const checks = Array.from(document.querySelectorAll('.split-member-check'));
+            const activeCount = checks.length || 1;
+            const baseBps = Math.floor(10000 / activeCount);
+            const extraBps = 10000 - (baseBps * activeCount);
+            checks.forEach((cb, idx) => {
+              const row = cb.closest('[data-member-row]');
+              const inp = row ? row.querySelector('.split-member-val') : null;
+              if (inp) {
+                inp.value = ((baseBps + (idx < extraBps ? 1 : 0)) / 100).toFixed(2);
+              }
+            });
+          }
           updateLiveSplitCheck();
         });
 
@@ -3215,15 +3376,24 @@
           const now = Date.now();
           if (!Array.isArray(trip.settlements)) trip.settlements = [];
 
+          const tx = DomainLogic.computeTripSettlement(trip).transactions.find(t => t.id === setId);
+
           const existing = trip.settlements.find(s => s.id === setId);
           if (existing) {
-            existing.settled = !existing.settled;
+            if (existing.settled && existing.amountPaise && tx && existing.amountPaise !== tx.amountPaise) {
+              existing.settled = true;
+              existing.amountPaise = tx.amountPaise;
+            } else {
+              existing.settled = !existing.settled;
+              existing.amountPaise = tx ? tx.amountPaise : 0;
+            }
             existing.updatedAt = now;
             existing.deleted = false;
           } else {
             trip.settlements.push({
               id: setId,
               settled: true,
+              amountPaise: tx ? tx.amountPaise : 0,
               createdAt: now,
               updatedAt: now,
               deleted: false
@@ -3336,7 +3506,7 @@
 
         document.getElementById('btnBackupAll').addEventListener('click', () => {
           const json = StorageService.exportFullBackup(appState);
-          downloadFile(`tripsplit_full_backup_${new Date().toISOString().split('T')[0]}.json`, json, 'application/json');
+          downloadFile(`tripsplit_full_backup_${getLocalTodayStr()}.json`, json, 'application/json');
           showToast('Full backup downloaded!');
         });
 

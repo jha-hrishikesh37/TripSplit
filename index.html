@@ -1080,8 +1080,10 @@
         <div class="identity-group">
           <span>I am:</span>
           <select id="identitySelect" class="select-pill" aria-label="Select Your Identity"></select>
-          <button type="button" class="icon-btn-xs" id="btnRenameMyIdentity" title="Rename this profile" aria-label="Rename Profile">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <button type="button" class="icon-btn-xs" id="btnRenameMyIdentity" title="Rename this profile"
+            aria-label="Rename Profile">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
             </svg>
           </button>
@@ -1327,8 +1329,8 @@
 
         <div class="form-group">
           <label class="form-label" for="tripNameInput">Group Name *</label>
-          <input type="text" id="tripNameInput" class="form-input" placeholder="e.g., Goa Weekend Getaway, Manali Trek, Flatmates"
-            required />
+          <input type="text" id="tripNameInput" class="form-input"
+            placeholder="e.g., Goa Weekend Getaway, Manali Trek, Flatmates" required />
         </div>
 
         <div class="form-group">
@@ -1357,11 +1359,13 @@
     <div class="modal-panel" style="max-width: 420px;" role="dialog" aria-labelledby="confirmModalTitle">
       <div class="modal-header">
         <div style="display:flex; align-items:center; gap:10px;">
-          <div style="width:34px; height:34px; border-radius:50%; background:var(--danger-soft); color:var(--danger); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
+          <div
+            style="width:34px; height:34px; border-radius:50%; background:var(--danger-soft); color:var(--danger); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
           <h3 class="modal-title" id="confirmModalTitle">Confirm Action</h3>
@@ -1413,7 +1417,8 @@
       </form>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-close="renameMemberModal">Cancel</button>
-        <button type="submit" form="renameMemberForm" class="btn btn-primary" id="btnSaveRenameMember">Save Name</button>
+        <button type="submit" form="renameMemberForm" class="btn btn-primary" id="btnSaveRenameMember">Save
+          Name</button>
       </div>
     </div>
   </div>
@@ -1467,7 +1472,7 @@
       function decodePayloadFromBase64(rawInput) {
         let cleaned = rawInput.trim();
         // Extract code if user pasted a full URL containing #sync=... or ?sync=...
-        const syncParamMatch = cleaned.match(/[?#&]sync=([A-Za-z0-9+/=_:-]+)/);
+        const syncParamMatch = cleaned.match(/[?#&]sync=([A-Za-z0-9+/=_:%-]+)/);
         if (syncParamMatch) {
           cleaned = decodeURIComponent(syncParamMatch[1]);
         }

@@ -2534,9 +2534,9 @@
           if (currentSplitType === 'EXACT') {
             inputVal = savedSplit ? (savedSplit.amountPaise / CONFIG.CURRENCY.SUBUNITS).toFixed(2) : '';
           } else if (currentSplitType === 'PERCENT') {
-            const myDefaultPct = isChecked ? ((baseBps + (activeIdx++ < extraBps ? 1 : 0)) / 100).toFixed(2) : '0';
+            const myDefaultPct = isChecked ? ((baseBps + (activeIdx++ < extraBps ? 1 : 0)) / 100).toFixed(2) : '0.00';
             inputVal = (savedSplit && existingExp?.splitType === 'PERCENT' && savedSplit.metaValue !== undefined)
-              ? savedSplit.metaValue
+              ? Number(savedSplit.metaValue).toFixed(2)
               : myDefaultPct;
           }
 
@@ -2551,7 +2551,7 @@
               ` : `
                 <div class="split-input-wrap">
                   <input type="number" class="form-input split-member-val" data-val-for="${escapeHtml(m.id)}"
-                    step="0.01" min="0" value="${inputVal}" placeholder="${currentSplitType === 'EXACT' ? '0.00' : '0%'}"
+                    step="0.01" min="0" value="${inputVal}" placeholder="${currentSplitType === 'EXACT' ? '0.00' : '0.00'}"
                     style="padding:6px 8px; font-size:0.85rem;" />
                   <span style="font-size:0.8rem; color:var(--text-muted);">${currentSplitType === 'EXACT' ? CONFIG.CURRENCY.SYMBOL : '%'}</span>
                 </div>
@@ -2563,6 +2563,75 @@
         container.querySelectorAll('input').forEach(inp => {
           inp.addEventListener('input', updateLiveSplitCheck);
           inp.addEventListener('change', updateLiveSplitCheck);
+        });
+
+        // Deselecting/selecting members in PERCENT split
+        container.querySelectorAll('.split-member-check').forEach(cb => {
+          cb.addEventListener('change', () => {
+            if (currentSplitType === 'PERCENT') {
+              const row = cb.closest('[data-member-row]');
+              const valInput = row ? row.querySelector('.split-member-val') : null;
+              const checkedRows = Array.from(container.querySelectorAll('.split-member-row'))
+                .filter(r => r.querySelector('.split-member-check').checked);
+
+              if (!cb.checked) {
+                // Deselecting a member: divide its percent value between remaining checked members
+                const valBps = valInput ? Math.round(Number(valInput.value || 0) * 100) : 0;
+                if (valInput) valInput.value = '0.00';
+
+                if (checkedRows.length > 0 && valBps > 0) {
+                  const count = checkedRows.length;
+                  const baseAdd = Math.floor(valBps / count);
+                  const extraAdd = valBps % count;
+
+                  const sorted = checkedRows.map(r => {
+                    const inp = r.querySelector('.split-member-val');
+                    return { r, inp, bps: Math.round(Number(inp?.value || 0) * 100) };
+                  }).sort((a, b) => a.bps - b.bps);
+
+                  sorted.forEach((item, idx) => {
+                    if (item.inp) {
+                      const extra = idx < extraAdd ? 1 : 0;
+                      const newBps = item.bps + baseAdd + extra;
+                      item.inp.value = (newBps / 100).toFixed(2);
+                    }
+                  });
+                }
+              } else {
+                // Selecting a member in percent split: redistribute 100% equally among all checked members
+                const count = checkedRows.length || 1;
+                const baseBps = Math.floor(10000 / count);
+                const extraBps = 10000 - (baseBps * count);
+                let activeIdx = 0;
+
+                container.querySelectorAll('.split-member-row').forEach(r => {
+                  const isChk = r.querySelector('.split-member-check').checked;
+                  const inp = r.querySelector('.split-member-val');
+                  if (inp) {
+                    if (isChk) {
+                      inp.value = ((baseBps + (activeIdx++ < extraBps ? 1 : 0)) / 100).toFixed(2);
+                    } else {
+                      inp.value = '0.00';
+                    }
+                  }
+                });
+              }
+            }
+            updateLiveSplitCheck();
+          });
+        });
+
+        // Ensure entered percentages always format to two floating points on blur
+        container.querySelectorAll('.split-member-val').forEach(inp => {
+          inp.addEventListener('blur', () => {
+            if (currentSplitType === 'PERCENT') {
+              const val = parseFloat(inp.value);
+              if (!isNaN(val) && inp.value.trim() !== '') {
+                inp.value = val.toFixed(2);
+                updateLiveSplitCheck();
+              }
+            }
+          });
         });
       }
 
@@ -2604,7 +2673,7 @@
         msgEl.textContent = result.message;
 
         if (currentSplitType === 'PERCENT') {
-          mathEl.textContent = `${result.totalPercent || 0}% / 100%`;
+          mathEl.textContent = `${(result.totalPercent || 0).toFixed(2)}% / 100.00%`;
         } else {
           mathEl.textContent = `${DomainLogic.formatPaise(result.allocatedPaise)} / ${DomainLogic.formatPaise(totalPaise)}`;
         }
@@ -3137,6 +3206,19 @@
 
         document.getElementById('btnSelectAllMembers').addEventListener('click', () => {
           document.querySelectorAll('.split-member-check').forEach(cb => { cb.checked = true; });
+          if (currentSplitType === 'PERCENT') {
+            const checks = Array.from(document.querySelectorAll('.split-member-check'));
+            const activeCount = checks.length || 1;
+            const baseBps = Math.floor(10000 / activeCount);
+            const extraBps = 10000 - (baseBps * activeCount);
+            checks.forEach((cb, idx) => {
+              const row = cb.closest('[data-member-row]');
+              const inp = row ? row.querySelector('.split-member-val') : null;
+              if (inp) {
+                inp.value = ((baseBps + (idx < extraBps ? 1 : 0)) / 100).toFixed(2);
+              }
+            });
+          }
           updateLiveSplitCheck();
         });
 

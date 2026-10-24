@@ -1651,6 +1651,21 @@
         }
 
         const incomingTrip = payload.trip;
+        if (!Array.isArray(incomingTrip.members) || incomingTrip.members.length === 0) {
+          throw new Error('Sync payload is missing valid group members.');
+        }
+        incomingTrip.expenses = (Array.isArray(incomingTrip.expenses) ? incomingTrip.expenses : []).filter(exp =>
+          exp && typeof exp.id === 'string' &&
+          Number.isFinite(Number(exp.amountPaise)) && Number(exp.amountPaise) > 0 &&
+          Array.isArray(exp.splits)
+        ).map(exp => ({
+          ...exp,
+          amountPaise: Math.round(Number(exp.amountPaise)),
+          splits: exp.splits.map(s => ({
+            ...s,
+            amountPaise: Math.round(Number(s.amountPaise || 0))
+          }))
+        }));
         const localTripIndex = state.trips.findIndex(t => t.id === incomingTrip.id);
 
         let stats = {
@@ -1752,6 +1767,9 @@
         const restoredState = parsed.state || parsed;
         if (!restoredState || !Array.isArray(restoredState.trips)) {
           throw new Error('Invalid backup file format.');
+        }
+        if (!restoredState.activeIdentities || typeof restoredState.activeIdentities !== 'object') {
+          restoredState.activeIdentities = {};
         }
         saveState(restoredState);
         return restoredState;
@@ -2721,6 +2739,7 @@
               showToast('Only the creator or trip organizer can edit this expense.');
               return;
             }
+            const safeUpdatedAt = Math.max(now, (trip.expenses[idx].updatedAt || 0) + 1);
             trip.expenses[idx] = {
               ...trip.expenses[idx],
               title,
@@ -2730,8 +2749,9 @@
               date,
               splitType: currentSplitType,
               splits: splitCalc.splits,
-              updatedAt: now
+              updatedAt: safeUpdatedAt
             };
+            trip.updatedAt = safeUpdatedAt;
           }
           showToast('Expense updated!');
         } else {
@@ -2750,10 +2770,9 @@
             updatedAt: now,
             deleted: false
           });
+          trip.updatedAt = now;
           showToast('Expense added!');
         }
-
-        trip.updatedAt = now;
         StorageService.saveState(appState);
         document.getElementById('expenseModal').classList.remove('open');
         renderAll();

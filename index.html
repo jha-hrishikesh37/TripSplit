@@ -2481,7 +2481,7 @@
         document.getElementById('expAmount').value = existingExp ? (existingExp.amountPaise / CONFIG.CURRENCY.SUBUNITS).toFixed(2) : '';
         document.getElementById('expCategory').value = existingExp ? existingExp.category : 'Food';
         document.getElementById('expPaidBy').value = existingExp ? existingExp.paidBy : activeMemberId;
-        document.getElementById('expDate').value = existingExp ? existingExp.date : new Date().toISOString().split('T')[0];
+        document.getElementById('expDate').value = existingExp ? existingExp.date : getLocalTodayStr();
 
         currentSplitType = existingExp ? existingExp.splitType : 'EQUAL';
         updateSplitTypeTabsUI();
@@ -2952,6 +2952,11 @@
           .replace(/'/g, '&#039;');
       }
 
+      function getLocalTodayStr() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
       // Prompt user to pick "I am <name>" after importing a trip link/code
       function promptIdentitySelection(tripId) {
         const trip = appState.trips.find(t => t.id === tripId && !t.deleted);
@@ -3355,7 +3360,7 @@
 
         document.getElementById('btnBackupAll').addEventListener('click', () => {
           const json = StorageService.exportFullBackup(appState);
-          downloadFile(`tripsplit_full_backup_${new Date().toISOString().split('T')[0]}.json`, json, 'application/json');
+          downloadFile(`tripsplit_full_backup_${getLocalTodayStr()}.json`, json, 'application/json');
           showToast('Full backup downloaded!');
         });
 

@@ -2312,7 +2312,7 @@
                   <div class="exp-meta">
                     <span>Paid by <strong>${escapeHtml(payerName)}</strong></span>
                     <span>•</span>
-                    <span>Split (${exp.splitType.toLowerCase()}) among ${splitCount}</span>
+                    <span>Split (${escapeHtml(String(exp.splitType || '').toLowerCase())}) among ${splitCount}</span>
                     <span>•</span>
                     <span>${escapeHtml(exp.date)}</span>
                   </div>
@@ -2783,6 +2783,15 @@
         list.querySelectorAll('[data-remove-mem]').forEach(btn => {
           btn.addEventListener('click', () => {
             const i = Number(btn.dataset.removeMem);
+            const memId = tempTripMembers[i]?.id;
+            const trip = getActiveTrip();
+            const hasExpenses = (trip?.expenses || []).some(e =>
+              !e.deleted && (e.paidBy === memId || (e.splits || []).some(s => s.memberId === memId))
+            );
+            if (hasExpenses) {
+              showToast('Cannot remove a member who is part of existing expenses.');
+              return;
+            }
             tempTripMembers.splice(i, 1);
             if (editingMemberIdx === i) editingMemberIdx = null;
             renderTripMembersEditor();
@@ -3053,9 +3062,14 @@
             const exp = (trip?.expenses || []).find(x => x.id === expId);
             if (!exp) return;
 
+            if (!DomainLogic.canModifyExpense(trip, exp, getActiveMemberId(trip))) {
+              showToast('Only the creator or organizer can delete this expense.');
+              return;
+            }
+
             openConfirmModal(
               'Delete Expense?',
-              `Are you sure you want to delete "${exp.title}" (${DomainLogic.formatPaise(exp.amountPaise)})? This deletion will also sync when merged.`,
+              `Are you sure you want to delete "${escapeHtml(exp.title)}" (${DomainLogic.formatPaise(exp.amountPaise)})? This deletion will also sync when merged.`,
               () => {
                 exp.deleted = true;
                 exp.updatedAt = Date.now();

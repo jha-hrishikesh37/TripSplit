@@ -985,19 +985,62 @@
 
     /* Print Stylesheet for Clean PDF Output */
     @media print {
+      /* Force paper-friendly color tokens regardless of active dark mode */
+      :root,
+      :root[data-theme="dark"],
+      [data-theme="dark"],
+      html,
       body {
-        background: #fff !important;
-        color: #000 !important;
-        padding-bottom: 0 !important;
+        --bg-body: #ffffff !important;
+        --bg-surface: #ffffff !important;
+        --bg-subtle: #f8fafc !important;
+        --bg-elevated: #ffffff !important;
+        --text-main: #0f172a !important;
+        --text-muted: #475569 !important;
+        --text-light: #64748b !important;
+        --border: #cbd5e1 !important;
+        --border-focus: #4f46e5 !important;
+        --primary: #4338ca !important;
+        --primary-hover: #3730a3 !important;
+        --primary-soft: #eef2ff !important;
+        --primary-text: #4338ca !important;
+        --success: #15803d !important;
+        --success-soft: #f0fdf4 !important;
+        --success-text: #15803d !important;
+        --danger: #b91c1c !important;
+        --danger-soft: #fef2f2 !important;
+        --danger-text: #b91c1c !important;
+        --warning: #b45309 !important;
+        --warning-soft: #fffbeb !important;
+        --warning-text: #92400e !important;
+        --shadow-sm: none !important;
+        --shadow-md: none !important;
+        --shadow-lg: none !important;
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
 
+      /* Hide interactive & non-printable elements */
       .no-print,
       .nav-tabs,
       .fab-container,
       .header-actions,
       .exp-actions,
-      .filter-row {
+      .filter-row,
+      .modal-backdrop,
+      .toast-container,
+      #tab-sync {
         display: none !important;
+      }
+
+      html,
+      body {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        padding-bottom: 0 !important;
+        font-size: 13px;
       }
 
       .app-container {
@@ -1005,22 +1048,148 @@
         padding: 0 !important;
       }
 
+      /* Header Layout in Print */
+      .app-header {
+        position: static !important;
+        background: #ffffff !important;
+        border-bottom: 2px solid #cbd5e1 !important;
+        padding: 8px 0 !important;
+        box-shadow: none !important;
+      }
+
+      .app-header .brand {
+        color: #0f172a !important;
+      }
+
+      .context-bar {
+        border-top: none !important;
+        padding-top: 4px !important;
+        margin-top: 4px !important;
+      }
+
+      .select-pill {
+        background: #f8fafc !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+
+      .identity-badge {
+        background: #eef2ff !important;
+        color: #4338ca !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+
+      /* Printable Cards & Items */
       .card,
       .expense-item,
       .settlement-card,
       .hero-summary {
+        background: #ffffff !important;
+        color: #0f172a !important;
         box-shadow: none !important;
         border: 1px solid #cbd5e1 !important;
         break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      .hero-summary {
+        margin-top: 10px !important;
+      }
+
+      .stat-box {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+      }
+
+      .stat-label {
+        color: #475569 !important;
+      }
+
+      .stat-value {
+        color: #0f172a !important;
+      }
+
+      .stat-sub {
+        color: #64748b !important;
+      }
+
+      .text-pos {
+        color: #15803d !important;
+      }
+
+      .text-neg {
+        color: #b91c1c !important;
+      }
+
+      .cat-icon {
+        background: #f1f5f9 !important;
+        border: 1px solid #e2e8f0 !important;
+      }
+
+      .badge {
+        background: #f1f5f9 !important;
+        color: #475569 !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+
+      .badge-primary {
+        background: #eef2ff !important;
+        color: #4338ca !important;
+      }
+
+      .exp-title,
+      .card-title {
+        color: #0f172a !important;
+      }
+
+      .exp-meta,
+      .section-subtitle {
+        color: #475569 !important;
+      }
+
+      .exp-amount {
+        color: #0f172a !important;
+      }
+
+      .exp-paid-by {
+        color: #64748b !important;
+      }
+
+      .settlement-card.is-settled {
+        background: #f8fafc !important;
+        opacity: 0.8 !important;
+        border-color: #e2e8f0 !important;
+      }
+
+      .pay-flow strong {
+        color: #0f172a !important;
+      }
+
+      .pay-arrow {
+        color: #64748b !important;
+      }
+
+      .split-member-row {
+        border-bottom: 1px solid #e2e8f0 !important;
+      }
+
+      .member-avatar-circle {
+        background: #eef2ff !important;
+        color: #4338ca !important;
+        border: 1px solid #c7d2fe !important;
+      }
+
+      .cat-row-top {
+        color: #0f172a !important;
+      }
+
+      .progress-bar-wrap {
+        background: #e2e8f0 !important;
       }
 
       .tab-section {
         display: block !important;
         margin-bottom: 24px;
-      }
-
-      #tab-sync {
-        display: none !important;
       }
     }
   </style>
@@ -3500,8 +3669,31 @@
           if (trip) exportTripToCSV(trip);
         });
 
+        // Window print lifecycle hooks to guarantee clean light paper PDF without dark backgrounds
+        let activeThemeBeforePrint = null;
+        window.addEventListener('beforeprint', () => {
+          activeThemeBeforePrint = document.documentElement.getAttribute('data-theme');
+          document.documentElement.setAttribute('data-theme', 'light');
+        });
+
+        window.addEventListener('afterprint', () => {
+          if (activeThemeBeforePrint) {
+            document.documentElement.setAttribute('data-theme', activeThemeBeforePrint);
+            activeThemeBeforePrint = null;
+          }
+        });
+
         document.getElementById('btnPrintPDF').addEventListener('click', () => {
-          window.print();
+          const prevTheme = document.documentElement.getAttribute('data-theme');
+          document.documentElement.setAttribute('data-theme', 'light');
+          setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+              if (prevTheme) {
+                document.documentElement.setAttribute('data-theme', prevTheme);
+              }
+            }, 300);
+          }, 30);
         });
 
         document.getElementById('btnBackupAll').addEventListener('click', () => {

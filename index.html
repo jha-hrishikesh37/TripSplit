@@ -1884,8 +1884,16 @@
         (incomingTrip.members || []).forEach(m => {
           if (!memberMap.has(m.id)) {
             memberMap.set(m.id, { ...m });
-          } else if ((incomingTrip.updatedAt || 0) >= (localTrip.updatedAt || 0)) {
-            memberMap.set(m.id, { ...memberMap.get(m.id), ...m });
+          } else {
+            const localMem = memberMap.get(m.id);
+            const incTime = m.updatedAt || 0;
+            const locTime = localMem.updatedAt || 0;
+            if (
+              incTime > locTime ||
+              (incTime === locTime && localMem.name === 'Me (Organizer)' && m.name !== 'Me (Organizer)')
+            ) {
+              memberMap.set(m.id, { ...localMem, ...m });
+            }
           }
         });
         localTrip.members = Array.from(memberMap.values());
@@ -2013,7 +2021,8 @@
           let remainder = totalPaise - (baseShare * count);
 
           // Sort deterministically by memberId for remainder distribution
-          const splits = activeMembers.map((m, idx) => {
+          const sortedMembers = [...activeMembers].sort((a, b) => a.memberId.localeCompare(b.memberId));
+          const splits = sortedMembers.map((m, idx) => {
             const extra = idx < remainder ? 1 : 0;
             return {
               memberId: m.memberId,
@@ -3026,6 +3035,7 @@
               const val = inlineInput.value.trim();
               if (val) {
                 tempTripMembers[editingMemberIdx].name = val;
+                tempTripMembers[editingMemberIdx].updatedAt = Date.now();
                 editingMemberIdx = null;
                 renderTripMembersEditor();
               } else {
@@ -3052,6 +3062,7 @@
             const val = inp ? inp.value.trim() : '';
             if (val) {
               tempTripMembers[idx].name = val;
+              tempTripMembers[idx].updatedAt = Date.now();
               editingMemberIdx = null;
               renderTripMembersEditor();
               showToast('Member name updated.');
@@ -3089,6 +3100,25 @@
 
       function handleSaveTrip(e) {
         e.preventDefault();
+        if (editingMemberIdx !== null) {
+          const inlineInp = document.querySelector(`.member-inline-input[data-idx="${editingMemberIdx}"]`);
+          const inlineVal = inlineInp ? inlineInp.value.trim() : '';
+          if (inlineVal && tempTripMembers[editingMemberIdx]) {
+            tempTripMembers[editingMemberIdx].name = inlineVal;
+            tempTripMembers[editingMemberIdx].updatedAt = Date.now();
+          }
+          editingMemberIdx = null;
+        }
+        const pendingNewMem = document.getElementById('newMemberNameInput');
+        if (pendingNewMem && pendingNewMem.value.trim()) {
+          tempTripMembers.push({
+            id: StorageService.generateId('mem'),
+            name: pendingNewMem.value.trim(),
+            isOrganizer: false,
+            updatedAt: Date.now()
+          });
+          pendingNewMem.value = '';
+        }
         const mode = document.getElementById('tripEditMode').value;
         const name = document.getElementById('tripNameInput').value.trim();
 
@@ -3510,6 +3540,7 @@
           if (member) {
             const oldName = member.name;
             member.name = newName;
+            member.updatedAt = Date.now();
             trip.updatedAt = Date.now();
             StorageService.saveState(appState);
             document.getElementById('renameMemberModal').classList.remove('open');

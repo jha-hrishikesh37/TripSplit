@@ -6,6 +6,15 @@ import { rupeesToPaise, formatPaise, getLocalTodayStr } from '../js/domain/money
 import { calculateSplits } from '../js/domain/splits.js';
 import { computeTripSettlement } from '../js/domain/settlement.js';
 import { canModifyExpense, canRemoveMember } from '../js/domain/permissions.js';
+import { createInitialDemoState } from '../js/storage/seed.js';
+import {
+  generateId,
+  encodePayloadToBase64,
+  decodePayloadFromBase64,
+  exportTripPayload
+} from '../js/storage/syncCodec.js';
+import { mergeTripInMemory } from '../js/storage/merge.js';
+import { StorageService } from '../js/storage/storageAdapter.js';
 
 test('CONFIG invariants', () => {
   assert.equal(CONFIG.APP_STORAGE_KEY, 'tripsplit_v1_state');
@@ -296,4 +305,219 @@ test('permissions: canRemoveMember pure helper', () => {
 
   // Empty expenses allows removal
   assert.equal(canRemoveMember({ expenses: [] }, 'any_mem'), true);
+});
+
+test('storage: encodePayloadToBase64 and decodePayloadFromBase64 with simulated WhatsApp URL', () => {
+  const originalObj = {
+    type: 'TRIPSPLIT_SYNC_V1',
+    exportedAt: 1700000000000,
+    trip: {
+      id: 'trip_sync_test',
+      name: 'Goa 2026',
+      members: [{ id: 'm1', name: 'Aarav' }]
+    }
+  };
+
+  const code = encodePayloadToBase64(originalObj);
+  assert.ok(code.startsWith(CONFIG.SYNC_PREFIX));
+
+  // Simulated WhatsApp URL: 'https://tripsplit.pages.dev/#sync=' + encodeURIComponent(code)
+  const whatsappUrl = 'https://tripsplit.pages.dev/#sync=' + encodeURIComponent(code);
+  const decodedFromUrl = decodePayloadFromBase64(whatsappUrl);
+  assert.deepEqual(decodedFromUrl, originalObj);
+
+  // Direct code string decode
+  const decodedDirect = decodePayloadFromBase64(code);
+  assert.deepEqual(decodedDirect, originalObj);
+});
+
+test('storage: mergeTripInMemory sanitizes float amountPaise and filters invalid expenses', () => {
+  const state = {
+    version: 1,
+    activeTripId: null,
+    activeIdentities: {},
+    trips: []
+  };
+
+  const payload = {
+    type: 'TRIPSPLIT_SYNC_V1',
+    trip: {
+      id: 'trip_sanitize_test',
+      name: 'Sanitization Test',
+      members: [{ id: 'm1', name: 'Aarav' }],
+      expenses: [
+        // Valid with float amountPaise to be rounded to integer
+        {
+          id: 'exp_float',
+          amountPaise: 123.4,
+          splits: [{ memberId: 'm1', amountPaise: 123.4 }],
+          deleted: false
+        },
+        // Invalid: missing/invalid id
+        {
+          id: null,
+          amountPaise: 500,
+          splits: []
+        },
+        // Invalid: zero amount
+        {
+          id: 'exp_zero',
+          amountPaise: 0,
+          splits: []
+        },
+        // Invalid: negative amount
+        {
+          id: 'exp_neg',
+          amountPaise: -100,
+          splits: []
+        },
+        // Invalid: NaN amount
+        {
+          id: 'exp_nan',
+          amountPaise: 'invalid',
+          splits: []
+        },
+        // Invalid: splits is not array
+        {
+          id: 'exp_no_splits',
+          amountPaise: 200,
+          splits: null
+        }
+      ]
+    }
+  };
+
+  const stats = mergeTripInMemory(state, payload);
+  assert.equal(stats.isNewTrip, true);
+  assert.equal(stats.addedExpenses, 1);
+
+  const importedTrip = state.trips.find(t => t.id === 'trip_sanitize_test');
+  assert.ok(importedTrip);
+  assert.equal(importedTrip.expenses.length, 1);
+  assert.equal(importedTrip.expenses[0].id, 'exp_float');
+  assert.equal(importedTrip.expenses[0].amountPaise, 123);
+  assert.equal(importedTrip.expenses[0].splits[0].amountPaise, 123);
+});
+
+test('storage: mergeTripInMemory preserves soft-deleted expense against older incoming edit', () => {
+  const state = {
+    version: 1,
+    activeTripId: 'trip_soft_del',
+    activeIdentities: {},
+    trips: [
+      {
+        id: 'trip_soft_del',
+        name: 'Soft Delete Test',
+        members: [{ id: 'm1', name: 'Aarav' }],
+        expenses: [
+          {
+            id: 'exp_1',
+            title: 'Dinner',
+            amountPaise: 5000,
+            deleted: true,
+            updatedAt: 200,
+            splits: [{ memberId: 'm1', amountPaise: 5000 }]
+          }
+        ],
+        settlements: [],
+        updatedAt: 200
+      }
+    ]
+  };
+
+  const payload = {
+    type: 'TRIPSPLIT_SYNC_V1',
+    trip: {
+      id: 'trip_soft_del',
+      name: 'Soft Delete Test',
+      members: [{ id: 'm1', name: 'Aarav' }],
+      expenses: [
+        {
+          id: 'exp_1',
+          title: 'Dinner Edited',
+          amountPaise: 6000,
+          deleted: false,
+          updatedAt: 100,
+          splits: [{ memberId: 'm1', amountPaise: 6000 }]
+        }
+      ],
+      updatedAt: 100
+    }
+  };
+
+  const stats = mergeTripInMemory(state, payload);
+  assert.equal(stats.updatedExpenses, 0);
+
+  const localTrip = state.trips[0];
+  const exp = localTrip.expenses.find(e => e.id === 'exp_1');
+  assert.equal(exp.deleted, true);
+  assert.equal(exp.updatedAt, 200);
+  assert.equal(exp.amountPaise, 5000);
+  assert.equal(exp.title, 'Dinner');
+});
+
+test('storage: mergeTripInMemory preserves renamed member against older member in newer trip payload', () => {
+  const state = {
+    version: 1,
+    activeTripId: 'trip_member_lww',
+    activeIdentities: {},
+    trips: [
+      {
+        id: 'trip_member_lww',
+        name: 'Trip Original',
+        organizerId: 'm1',
+        members: [
+          { id: 'm1', name: 'Aarav', isOrganizer: true, updatedAt: 300 }
+        ],
+        expenses: [],
+        settlements: [],
+        updatedAt: 200
+      }
+    ]
+  };
+
+  const payload = {
+    type: 'TRIPSPLIT_SYNC_V1',
+    trip: {
+      id: 'trip_member_lww',
+      name: 'Trip Updated',
+      organizerId: 'm1',
+      members: [
+        { id: 'm1', name: 'Me (Organizer)', isOrganizer: true, updatedAt: 100 }
+      ],
+      expenses: [],
+      settlements: [],
+      updatedAt: 500 // Newer trip updatedAt
+    }
+  };
+
+  mergeTripInMemory(state, payload);
+
+  const localTrip = state.trips[0];
+  // Trip name updated because trip.updatedAt (500) > localTrip.updatedAt (200)
+  assert.equal(localTrip.name, 'Trip Updated');
+  assert.equal(localTrip.updatedAt, 500);
+
+  // Member name 'Aarav' preserved because local member updatedAt (300) > incoming member updatedAt (100)
+  const member = localTrip.members.find(m => m.id === 'm1');
+  assert.ok(member);
+  assert.equal(member.name, 'Aarav');
+  assert.equal(member.updatedAt, 300);
+});
+
+test('storage: StorageService exports and methods contract', () => {
+  assert.equal(typeof StorageService.generateId, 'function');
+  assert.equal(typeof StorageService.encodePayloadToBase64, 'function');
+  assert.equal(typeof StorageService.decodePayloadFromBase64, 'function');
+  assert.equal(typeof StorageService.exportTripPayload, 'function');
+  assert.equal(typeof StorageService.loadState, 'function');
+  assert.equal(typeof StorageService.saveState, 'function');
+  assert.equal(typeof StorageService.mergeTripPayload, 'function');
+  assert.equal(typeof StorageService.exportFullBackup, 'function');
+  assert.equal(typeof StorageService.restoreFullBackup, 'function');
+
+  const demo = createInitialDemoState();
+  assert.equal(demo.version, 1);
+  assert.equal(demo.trips.length, 1);
+  assert.equal(demo.trips[0].id, 'trip_goa_demo');
 });

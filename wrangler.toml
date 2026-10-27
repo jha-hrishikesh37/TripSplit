@@ -1,0 +1,8 @@
+name = "tripsplit"
+pages_build_output_dir = "."
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tripsplit-db"
+database_id = "a71467a7-3368-46c5-995a-b999c15691c6"

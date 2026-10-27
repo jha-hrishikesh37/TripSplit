@@ -117,4 +117,46 @@ test.describe('TripSplit E2E Test Suite', () => {
     }
   });
 
+  test('Test 5: Cloud Sync Endpoint Roundtrip / Mock Sync UI', async ({ page }) => {
+    let interceptedPost = null;
+
+    await page.route('**/api/trips/*/sync', async (route, request) => {
+      if (request.method() === 'POST') {
+        interceptedPost = {
+          url: request.url(),
+          postData: request.postDataJSON()
+        };
+        const payload = request.postDataJSON();
+        const incomingTrip = payload?.trip || payload;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            trip: incomingTrip
+          })
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    // Click #btnCloudSyncNow to trigger sync
+    await page.click('#btnCloudSyncNow');
+
+    // Verify #cloudSyncLabel updates to 'Synced'
+    const syncLabel = page.locator('#cloudSyncLabel');
+    await expect(syncLabel).toHaveText('Synced');
+
+    // Verify intercepted request contained the active trip's ID and expenses
+    expect(interceptedPost).not.toBeNull();
+    const tripData = interceptedPost.postData?.trip || interceptedPost.postData;
+    expect(tripData.id).toBeTruthy();
+    expect(Array.isArray(tripData.expenses)).toBe(true);
+    expect(interceptedPost.url).toContain(encodeURIComponent(tripData.id));
+
+    // Verify #cloudSyncDot has class 'synced'
+    await expect(page.locator('#cloudSyncDot')).toHaveClass(/synced/);
+  });
+
 });

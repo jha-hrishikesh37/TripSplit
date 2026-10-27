@@ -58,12 +58,47 @@ export function bindEvents() {
   // Theme Toggle
   document.getElementById('btnThemeToggle')?.addEventListener('click', toggleTheme);
 
+  // Cloud Sync Status Listener
+  StorageService.onSyncStatusChange(({ status, stats }) => {
+    const dot = document.getElementById('cloudSyncDot');
+    const label = document.getElementById('cloudSyncLabel');
+    if (dot) {
+      dot.className = 'sync-dot';
+      if (status === 'synced') dot.classList.add('synced');
+      else if (status === 'syncing') dot.classList.add('syncing');
+      else if (status === 'offline') dot.classList.add('offline');
+    }
+    if (label) {
+      if (status === 'synced') label.textContent = 'Synced';
+      else if (status === 'syncing') label.textContent = 'Syncing...';
+      else if (status === 'offline') label.textContent = 'Offline';
+    }
+    if (status === 'synced' && stats && (stats.addedExpenses > 0 || stats.updatedExpenses > 0 || stats.addedMembers > 0 || stats.settlementChanges > 0)) {
+      renderAll({ onOpenCreateTrip: () => openTripModal('create') });
+    }
+  });
+
+  // Cloud Sync Manual Trigger
+  document.getElementById('btnCloudSyncNow')?.addEventListener('click', async () => {
+    const res = await StorageService.syncTripWithCloud(uiState.appState);
+    if (res && res.ok) {
+      showToast('Synced with cloud!');
+    } else {
+      showToast('Saved locally (offline mode)');
+    }
+  });
+
+  window.addEventListener('online', () => StorageService.syncTripWithCloud(uiState.appState));
+
   // Trip & Identity Selectors
-  document.getElementById('tripSelect')?.addEventListener('change', (e) => {
+  const onTripChange = (e) => {
     uiState.appState.activeTripId = e.target.value;
     StorageService.saveState(uiState.appState);
     renderAll();
-  });
+    StorageService.syncTripWithCloud(uiState.appState);
+  };
+  document.getElementById('tripSelect')?.addEventListener('change', onTripChange);
+  document.getElementById('tripSelector')?.addEventListener('change', onTripChange);
 
   document.getElementById('identitySelect')?.addEventListener('change', (e) => {
     const trip = getActiveTrip();
@@ -470,6 +505,7 @@ export function init() {
   bindEvents();
   renderAll({ onOpenCreateTrip: () => openTripModal('create') });
   checkUrlForSyncPayload();
+  StorageService.syncTripWithCloud(uiState.appState);
 }
 
 window.addEventListener('DOMContentLoaded', init);

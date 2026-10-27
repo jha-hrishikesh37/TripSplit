@@ -14,7 +14,17 @@ import {
   exportTripPayload
 } from '../js/storage/syncCodec.js';
 import { mergeTripInMemory } from '../js/storage/merge.js';
-import { StorageService } from '../js/storage/storageAdapter.js';
+import {
+  StorageService,
+  onSyncStatusChange,
+  getSyncStatus,
+  syncTripWithCloud,
+  pullTripFromCloud,
+  scheduleCloudSync,
+  saveState,
+  loadState
+} from '../js/storage/storageAdapter.js';
+import { onRequestGet, onRequestPost } from '../functions/api/trips/[id]/sync.js';
 
 test('CONFIG invariants', () => {
   assert.equal(CONFIG.APP_STORAGE_KEY, 'tripsplit_v1_state');
@@ -515,6 +525,11 @@ test('storage: StorageService exports and methods contract', () => {
   assert.equal(typeof StorageService.mergeTripPayload, 'function');
   assert.equal(typeof StorageService.exportFullBackup, 'function');
   assert.equal(typeof StorageService.restoreFullBackup, 'function');
+  assert.equal(typeof StorageService.onSyncStatusChange, 'function');
+  assert.equal(typeof StorageService.getSyncStatus, 'function');
+  assert.equal(typeof StorageService.syncTripWithCloud, 'function');
+  assert.equal(typeof StorageService.pullTripFromCloud, 'function');
+  assert.equal(typeof StorageService.scheduleCloudSync, 'function');
 
   const demo = createInitialDemoState();
   assert.equal(demo.version, 1);
@@ -632,4 +647,617 @@ test('storage: mergeTripInMemory metaUpdatedAt protects group rename from expens
   assert.equal(localTrip.updatedAt, 500);
   assert.equal(localTrip.expenses.length, 1);
   assert.equal(localTrip.expenses[0].id, 'exp_new');
+});
+
+
+function createMockD1Database(initialRows = {}) {
+  const store = new Map(Object.entries(initialRows));
+
+  return {
+    _store: store,
+    prepare(sql) {
+      let boundArgs = [];
+      const stmt = {
+        bind(...args) {
+          boundArgs = args;
+          return stmt;
+        },
+        async first() {
+          if (sql.includes('SELECT trip_json FROM trips WHERE id = ?1')) {
+            const tripId = boundArgs[0];
+            const row = store.get(tripId);
+            return row ? { trip_json: row.trip_json } : null;
+          }
+          return null;
+        },
+        async run() {
+          if (sql.includes('INSERT INTO trips')) {
+            const [
+              id,
+              name,
+              currency,
+              organizer_id,
+              created_at,
+              updated_at,
+              meta_updated_at,
+              deleted,
+              trip_json
+            ] = boundArgs;
+            store.set(id, {
+              id,
+              name,
+              currency,
+              organizer_id,
+              created_at,
+              updated_at,
+              meta_updated_at,
+              deleted,
+              trip_json
+            });
+            return { success: true };
+          }
+          return { success: true };
+        }
+      };
+      return stmt;
+    }
+  };
+}
+
+test('backend sync: onRequestPost inserts new trip and returns ok', async () => {
+  const mockDB = createMockD1Database();
+  const tripId = 'trip_sync_test_1';
+  const initialTrip = {
+    id: tripId,
+    name: 'Goa Holiday',
+    currency: 'INR',
+    organizerId: 'mem_1',
+    members: [
+      { id: 'mem_1', name: 'Alice Smith', updatedAt: 200, revision: 2 },
+      { id: 'mem_2', name: 'Bob', updatedAt: 100, revision: 1 }
+    ],
+    expenses: [
+      {
+        id: 'exp_1',
+        title: 'Hotel',
+        amountPaise: 500000,
+        payerId: 'mem_1',
+        splits: [
+          { memberId: 'mem_1', amountPaise: 250000 },
+          { memberId: 'mem_2', amountPaise: 250000 }
+        ],
+        updatedAt: 100,
+        revision: 1
+      }
+    ],
+    settlements: [],
+    createdAt: 100,
+    updatedAt: 200,
+    metaUpdatedAt: 200
+  };
+
+  const context = {
+    params: { id: tripId },
+    env: { DB: mockDB },
+    request: {
+      json: async () => ({ trip: initialTrip })
+    }
+  };
+
+  const res = await onRequestPost(context);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.trip.id, tripId);
+  assert.equal(body.trip.name, 'Goa Holiday');
+  assert.equal(body.stats.isNewTrip, true);
+
+  const storedRow = mockDB._store.get(tripId);
+  assert.ok(storedRow);
+  assert.equal(storedRow.id, tripId);
+  assert.equal(storedRow.name, 'Goa Holiday');
+  const storedTrip = JSON.parse(storedRow.trip_json);
+  assert.equal(storedTrip.id, tripId);
+});
+
+test('backend sync: onRequestPost merges second device with new expense and older member name', async () => {
+  const mockDB = createMockD1Database();
+  const tripId = 'trip_sync_test_2';
+
+  const d1Trip = {
+    id: tripId,
+    name: 'Goa Holiday',
+    currency: 'INR',
+    organizerId: 'mem_1',
+    members: [
+      { id: 'mem_1', name: 'Alice Smith', updatedAt: 200, revision: 2 },
+      { id: 'mem_2', name: 'Bob', updatedAt: 100, revision: 1 }
+    ],
+    expenses: [
+      {
+        id: 'exp_1',
+        title: 'Hotel',
+        amountPaise: 500000,
+        payerId: 'mem_1',
+        splits: [
+          { memberId: 'mem_1', amountPaise: 250000 },
+          { memberId: 'mem_2', amountPaise: 250000 }
+        ],
+        updatedAt: 100,
+        revision: 1
+      }
+    ],
+    settlements: [],
+    createdAt: 100,
+    updatedAt: 200,
+    metaUpdatedAt: 200
+  };
+  mockDB._store.set(tripId, {
+    id: tripId,
+    name: d1Trip.name,
+    currency: d1Trip.currency,
+    organizer_id: d1Trip.organizerId,
+    created_at: d1Trip.createdAt,
+    updated_at: d1Trip.updatedAt,
+    meta_updated_at: d1Trip.metaUpdatedAt,
+    deleted: 0,
+    trip_json: JSON.stringify(d1Trip)
+  });
+
+  const device2Trip = {
+    id: tripId,
+    name: 'Goa Holiday',
+    currency: 'INR',
+    organizerId: 'mem_1',
+    members: [
+      { id: 'mem_1', name: 'Alice', updatedAt: 100, revision: 1 },
+      { id: 'mem_2', name: 'Bob', updatedAt: 100, revision: 1 }
+    ],
+    expenses: [
+      d1Trip.expenses[0],
+      {
+        id: 'exp_2',
+        title: 'Seafood Dinner',
+        amountPaise: 200000,
+        payerId: 'mem_2',
+        splits: [
+          { memberId: 'mem_1', amountPaise: 100000 },
+          { memberId: 'mem_2', amountPaise: 100000 }
+        ],
+        updatedAt: 300,
+        revision: 1
+      }
+    ],
+    settlements: [],
+    createdAt: 100,
+    updatedAt: 300,
+    metaUpdatedAt: 100
+  };
+
+  const context = {
+    params: { id: tripId },
+    env: { DB: mockDB },
+    request: {
+      json: async () => ({ app: 'TripSplit', version: 1, trip: device2Trip })
+    }
+  };
+
+  const res = await onRequestPost(context);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.stats.isNewTrip, false);
+  assert.equal(body.stats.addedExpenses, 1);
+
+  const member1 = body.trip.members.find(m => m.id === 'mem_1');
+  assert.equal(member1.name, 'Alice Smith');
+
+  assert.equal(body.trip.expenses.length, 2);
+  assert.ok(body.trip.expenses.some(e => e.id === 'exp_1'));
+  assert.ok(body.trip.expenses.some(e => e.id === 'exp_2'));
+
+  const stored = JSON.parse(mockDB._store.get(tripId).trip_json);
+  assert.equal(stored.members.find(m => m.id === 'mem_1').name, 'Alice Smith');
+  assert.equal(stored.expenses.length, 2);
+});
+
+test('backend sync: onRequestGet returns merged trip from mock D1', async () => {
+  const mockDB = createMockD1Database();
+  const tripId = 'trip_sync_test_3';
+
+  const tripData = {
+    id: tripId,
+    name: 'Mountain Trek',
+    currency: 'INR',
+    organizerId: 'mem_1',
+    members: [
+      { id: 'mem_1', name: 'Alice Smith', updatedAt: 200, revision: 2 },
+      { id: 'mem_2', name: 'Bob', updatedAt: 100, revision: 1 }
+    ],
+    expenses: [
+      {
+        id: 'exp_1',
+        title: 'Gear Rental',
+        amountPaise: 400000,
+        payerId: 'mem_1',
+        splits: [
+          { memberId: 'mem_1', amountPaise: 200000 },
+          { memberId: 'mem_2', amountPaise: 200000 }
+        ],
+        updatedAt: 100,
+        revision: 1
+      },
+      {
+        id: 'exp_2',
+        title: 'Camp Permit',
+        amountPaise: 150000,
+        payerId: 'mem_2',
+        splits: [
+          { memberId: 'mem_1', amountPaise: 75000 },
+          { memberId: 'mem_2', amountPaise: 75000 }
+        ],
+        updatedAt: 300,
+        revision: 1
+      }
+    ],
+    settlements: [],
+    createdAt: 100,
+    updatedAt: 300,
+    metaUpdatedAt: 200
+  };
+
+  mockDB._store.set(tripId, {
+    id: tripId,
+    name: tripData.name,
+    currency: tripData.currency,
+    organizer_id: tripData.organizerId,
+    created_at: tripData.createdAt,
+    updated_at: tripData.updatedAt,
+    meta_updated_at: tripData.metaUpdatedAt,
+    deleted: 0,
+    trip_json: JSON.stringify(tripData)
+  });
+
+  const context = {
+    params: { id: tripId },
+    env: { DB: mockDB }
+  };
+
+  const res = await onRequestGet(context);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.trip.id, tripId);
+  assert.equal(body.trip.name, 'Mountain Trek');
+  assert.equal(body.trip.members.find(m => m.id === 'mem_1').name, 'Alice Smith');
+  assert.equal(body.trip.expenses.length, 2);
+  assert.ok(body.trip.expenses.some(e => e.id === 'exp_2'));
+});
+
+test('backend sync: error cases for onRequestGet and onRequestPost', async () => {
+  const mockDB = createMockD1Database();
+
+  // 1. Missing DB binding on GET
+  const resNoDbGet = await onRequestGet({ params: { id: 't1' }, env: {} });
+  assert.equal(resNoDbGet.status, 503);
+  const bodyNoDbGet = await resNoDbGet.json();
+  assert.equal(bodyNoDbGet.ok, false);
+  assert.equal(bodyNoDbGet.error, 'Database binding DB is not configured');
+
+  // 2. Missing DB binding on POST
+  const resNoDbPost = await onRequestPost({ params: { id: 't1' }, env: {}, request: { json: async () => ({}) } });
+  assert.equal(resNoDbPost.status, 503);
+  const bodyNoDbPost = await resNoDbPost.json();
+  assert.equal(bodyNoDbPost.ok, false);
+  assert.equal(bodyNoDbPost.error, 'Database binding DB is not configured');
+
+  // 3. Not found on GET
+  const resNotFound = await onRequestGet({ params: { id: 'unknown_trip' }, env: { DB: mockDB } });
+  assert.equal(resNotFound.status, 404);
+  const bodyNotFound = await resNotFound.json();
+  assert.equal(bodyNotFound.ok, false);
+  assert.equal(bodyNotFound.error, 'Trip not found in cloud');
+
+  // 4. Trip ID mismatch on POST
+  const resMismatch = await onRequestPost({
+    params: { id: 'trip_a' },
+    env: { DB: mockDB },
+    request: { json: async () => ({ trip: { id: 'trip_b' } }) }
+  });
+  assert.equal(resMismatch.status, 400);
+  const bodyMismatch = await resMismatch.json();
+  assert.equal(bodyMismatch.ok, false);
+  assert.equal(bodyMismatch.error, 'Trip ID mismatch or invalid payload');
+});
+
+test('storage: onSyncStatusChange and getSyncStatus manage listeners and status state', () => {
+  const events = [];
+  const unsubscribe = onSyncStatusChange(evt => {
+    events.push(evt);
+  });
+
+  const initialStatus = getSyncStatus();
+  assert.ok(['idle', 'synced', 'syncing', 'offline', 'error'].includes(initialStatus.status));
+
+  unsubscribe();
+  const countBefore = events.length;
+  assert.equal(events.length, countBefore);
+});
+
+test('storage: syncTripWithCloud handles missing trip and offline status', async () => {
+  // 1. Missing active trip
+  const resNoTrip = await syncTripWithCloud({ activeTripId: 'none', trips: [] });
+  assert.equal(resNoTrip.ok, false);
+  assert.equal(resNoTrip.error, 'No active trip');
+
+  // 2. Offline navigator
+  const origOnLine = globalThis.navigator?.onLine;
+  try {
+    Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true, writable: true });
+    const trip = { id: 'trip_offline', name: 'Offline Trip', members: [{ id: 'm1', name: 'Aarav' }] };
+    const state = { activeTripId: 'trip_offline', trips: [trip] };
+
+    const statusEvents = [];
+    const unsub = onSyncStatusChange(e => statusEvents.push(e));
+    const resOffline = await syncTripWithCloud(state, 'trip_offline');
+    unsub();
+
+    assert.equal(resOffline.ok, false);
+    assert.equal(resOffline.offline, true);
+    assert.ok(statusEvents.some(e => e.status === 'offline'));
+  } finally {
+    if (origOnLine !== undefined) {
+      Object.defineProperty(globalThis.navigator, 'onLine', { value: origOnLine, configurable: true, writable: true });
+    } else {
+      delete globalThis.navigator.onLine;
+    }
+  }
+});
+
+test('storage: syncTripWithCloud successfully syncs, merges and persists to localStorage', async () => {
+  const tripId = 'trip_cloud_test_1';
+  const localTrip = {
+    id: tripId,
+    name: 'Goa Holiday',
+    members: [
+      { id: 'm1', name: 'Aarav', updatedAt: 100, revision: 1 },
+      { id: 'm2', name: 'Priya', updatedAt: 100, revision: 1 }
+    ],
+    expenses: [
+      {
+        id: 'exp_1',
+        title: 'Cab',
+        amountPaise: 200000,
+        splits: [{ memberId: 'm1', amountPaise: 100000 }, { memberId: 'm2', amountPaise: 100000 }],
+        updatedAt: 100,
+        revision: 1
+      }
+    ],
+    settlements: [],
+    updatedAt: 100
+  };
+
+  const state = {
+    version: 1,
+    activeTripId: tripId,
+    trips: [localTrip]
+  };
+
+  const origFetch = globalThis.fetch;
+  const origLocalStorage = globalThis.localStorage;
+  let savedStorage = null;
+
+  try {
+    globalThis.localStorage = {
+      getItem: () => null,
+      setItem: (key, val) => { savedStorage = { key, val }; }
+    };
+
+    let postBody = null;
+    let postUrl = null;
+
+    globalThis.fetch = async (url, opts) => {
+      postUrl = url;
+      postBody = JSON.parse(opts.body);
+      const incomingTrip = postBody.trip;
+      const remoteTrip = {
+        ...incomingTrip,
+        expenses: [
+          ...incomingTrip.expenses,
+          {
+            id: 'exp_2',
+            title: 'Dinner',
+            amountPaise: 300000,
+            splits: [{ memberId: 'm1', amountPaise: 150000 }, { memberId: 'm2', amountPaise: 150000 }],
+            updatedAt: 200,
+            revision: 1
+          }
+        ],
+        updatedAt: 200
+      };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          trip: remoteTrip,
+          stats: { tripId, isNewTrip: false, addedExpenses: 1, updatedExpenses: 0 }
+        })
+      };
+    };
+
+    const statusEvents = [];
+    const unsub = onSyncStatusChange(e => statusEvents.push(e));
+    const result = await syncTripWithCloud(state, tripId);
+    unsub();
+
+    assert.equal(result.ok, true);
+    assert.equal(postUrl, `/api/trips/${encodeURIComponent(tripId)}/sync`);
+    assert.equal(postBody.type, 'TRIPSPLIT_SYNC_V1');
+    assert.equal(postBody.trip.id, tripId);
+    assert.ok(result.stats);
+    assert.equal(result.trip.id, tripId);
+    assert.equal(result.trip.expenses.length, 2);
+
+    // Verify localStorage was written directly
+    assert.ok(savedStorage);
+    assert.equal(savedStorage.key, CONFIG.APP_STORAGE_KEY);
+    const parsedState = JSON.parse(savedStorage.val);
+    assert.equal(parsedState.trips[0].expenses.length, 2);
+
+    // Verify sync events: syncing followed by synced
+    assert.ok(statusEvents.some(e => e.status === 'syncing' && e.tripId === tripId));
+    assert.ok(statusEvents.some(e => e.status === 'synced' && e.tripId === tripId && e.lastSyncedAt > 0));
+    assert.equal(getSyncStatus().status, 'synced');
+  } finally {
+    globalThis.fetch = origFetch;
+    globalThis.localStorage = origLocalStorage;
+  }
+});
+
+test('storage: syncTripWithCloud handles server error and network error gracefully', async () => {
+  const tripId = 'trip_err_test';
+  const state = {
+    activeTripId: tripId,
+    trips: [{ id: tripId, name: 'Error Test', members: [{ id: 'm1', name: 'Alice' }] }]
+  };
+
+  const origFetch = globalThis.fetch;
+  try {
+    // 1. Non-200 HTTP response
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      json: async () => ({ ok: false, error: 'Database crashed' })
+    });
+
+    const res500 = await syncTripWithCloud(state, tripId);
+    assert.equal(res500.ok, false);
+    assert.ok(res500.error.includes('Database crashed') || res500.error.includes('500'));
+    assert.equal(getSyncStatus().status, 'error');
+
+    // 2. Fetch throws network failure (e.g. connection refused)
+    globalThis.fetch = async () => {
+      throw new Error('Connection refused');
+    };
+
+    const resNetwork = await syncTripWithCloud(state, tripId);
+    assert.equal(resNetwork.ok, false);
+    assert.equal(resNetwork.error, 'Connection refused');
+    assert.equal(getSyncStatus().status, 'error');
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('storage: pullTripFromCloud merges remote data and handles missing/error responses', async () => {
+  const tripId = 'trip_pull_test';
+  const state = {
+    activeTripId: tripId,
+    trips: [{ id: tripId, name: 'Local Version', members: [{ id: 'm1', name: 'Alice', updatedAt: 100, revision: 1 }] }]
+  };
+
+  const origFetch = globalThis.fetch;
+  const origLocalStorage = globalThis.localStorage;
+  let savedStorage = null;
+
+  try {
+    globalThis.localStorage = {
+      getItem: () => null,
+      setItem: (key, val) => { savedStorage = { key, val }; }
+    };
+
+    // 1. Successful 200 pull
+    globalThis.fetch = async (url) => {
+      assert.equal(url, `/api/trips/${encodeURIComponent(tripId)}/sync`);
+      return {
+        status: 200,
+        ok: true,
+        json: async () => ({
+          ok: true,
+          trip: {
+            id: tripId,
+            name: 'Cloud Version',
+            members: [{ id: 'm1', name: 'Alice Cooper', updatedAt: 200, revision: 2 }],
+            expenses: [],
+            settlements: [],
+            updatedAt: 200,
+            metaUpdatedAt: 200
+          }
+        })
+      };
+    };
+
+    const pullRes = await pullTripFromCloud(state, tripId);
+    assert.equal(pullRes.ok, true);
+    assert.equal(pullRes.trip.name, 'Cloud Version');
+    assert.equal(pullRes.trip.members[0].name, 'Alice Cooper');
+    assert.ok(savedStorage);
+
+    // 2. 404 response
+    globalThis.fetch = async () => ({
+      status: 404,
+      ok: false,
+      json: async () => ({ ok: false, error: 'Trip not found' })
+    });
+
+    const pull404 = await pullTripFromCloud(state, 'nonexistent_trip');
+    assert.equal(pull404.ok, false);
+    assert.equal(pull404.status, 404);
+
+    // 3. Network rejection handled without throwing
+    globalThis.fetch = async () => {
+      throw new Error('Network timeout');
+    };
+    const pullFail = await pullTripFromCloud(state, tripId);
+    assert.equal(pullFail.ok, false);
+    assert.equal(pullFail.status, 0);
+  } finally {
+    globalThis.fetch = origFetch;
+    globalThis.localStorage = origLocalStorage;
+  }
+});
+
+test('storage: scheduleCloudSync and saveState debouncing and skipCloud option', async () => {
+  const origWindow = globalThis.window;
+  const origSync = StorageService.syncTripWithCloud;
+
+  let syncCalls = [];
+  StorageService.syncTripWithCloud = async (st, id) => {
+    syncCalls.push({ st, id });
+    return { ok: true };
+  };
+
+  try {
+    // In Node (no window), scheduleCloudSync is a no-op
+    const state = { activeTripId: 'trip_deb_1', trips: [{ id: 'trip_deb_1' }] };
+    scheduleCloudSync(state, 'trip_deb_1', 10);
+    assert.equal(syncCalls.length, 0);
+
+    // With window defined, schedules with debounce
+    globalThis.window = {};
+    scheduleCloudSync(state, 'trip_deb_1', 30);
+    scheduleCloudSync(state, 'trip_deb_1', 30); // reset debounce timer
+    assert.equal(syncCalls.length, 0);
+
+    await new Promise(r => setTimeout(r, 60));
+    assert.equal(syncCalls.length, 1);
+    assert.equal(syncCalls[0].id, 'trip_deb_1');
+
+    // saveState with skipCloud: true doesn't trigger sync
+    syncCalls = [];
+    saveState(state, { skipCloud: true });
+    await new Promise(r => setTimeout(r, 60));
+    assert.equal(syncCalls.length, 0);
+  } finally {
+    globalThis.window = origWindow;
+    StorageService.syncTripWithCloud = origSync;
+  }
 });

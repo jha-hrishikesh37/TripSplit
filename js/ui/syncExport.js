@@ -114,7 +114,7 @@ export function promptIdentitySelection(tripId) {
   if (modalEl) modalEl.classList.add('open');
 }
 
-export function checkUrlForSyncPayload() {
+export async function checkUrlForSyncPayload() {
   const hash = typeof window !== 'undefined' ? window.location.hash || '' : '';
   const search = typeof window !== 'undefined' ? window.location.search || '' : '';
   const combined = hash + search;
@@ -130,6 +130,22 @@ export function checkUrlForSyncPayload() {
       promptIdentitySelection(stats.tripId);
     } catch (err) {
       showToast('Could not parse sync link from URL.');
+    }
+    return;
+  }
+
+  const tripMatch = combined.match(/[?#&]trip=([A-Za-z0-9_-]+)/);
+  if (tripMatch && tripMatch[1]) {
+    const tripId = tripMatch[1];
+    try {
+      await StorageService.pullTripFromCloud(uiState.appState, tripId);
+      if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+      renderAll();
+      promptIdentitySelection(tripId);
+    } catch (err) {
+      showToast('Could not load trip from cloud.');
     }
   }
 }

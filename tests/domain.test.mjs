@@ -521,3 +521,115 @@ test('storage: StorageService exports and methods contract', () => {
   assert.equal(demo.trips.length, 1);
   assert.equal(demo.trips[0].id, 'trip_goa_demo');
 });
+
+test('storage: mergeTripInMemory monotonic revision beats skewed client clock on expense edit', () => {
+  const state = {
+    version: 1,
+    activeTripId: 'trip_skew_test',
+    activeIdentities: {},
+    trips: [
+      {
+        id: 'trip_skew_test',
+        name: 'Skew Test',
+        members: [{ id: 'm1', name: 'Aarav' }],
+        expenses: [
+          {
+            id: 'exp_1',
+            title: 'Stale Clock Expense',
+            amountPaise: 5000,
+            revision: 1,
+            updatedAt: 9999,
+            deleted: false,
+            splits: [{ memberId: 'm1', amountPaise: 5000 }]
+          }
+        ],
+        settlements: [],
+        updatedAt: 9999
+      }
+    ]
+  };
+
+  const payload = {
+    type: 'TRIPSPLIT_SYNC_V1',
+    trip: {
+      id: 'trip_skew_test',
+      name: 'Skew Test',
+      members: [{ id: 'm1', name: 'Aarav' }],
+      expenses: [
+        {
+          id: 'exp_1',
+          title: 'Edited Expense Newer Revision',
+          amountPaise: 6000,
+          revision: 2,
+          updatedAt: 1000,
+          deleted: false,
+          splits: [{ memberId: 'm1', amountPaise: 6000 }]
+        }
+      ],
+      updatedAt: 1000
+    }
+  };
+
+  const stats = mergeTripInMemory(state, payload);
+  assert.equal(stats.updatedExpenses, 1);
+
+  const localTrip = state.trips[0];
+  const exp = localTrip.expenses.find(e => e.id === 'exp_1');
+  assert.equal(exp.revision, 2);
+  assert.equal(exp.title, 'Edited Expense Newer Revision');
+  assert.equal(exp.amountPaise, 6000);
+  assert.equal(exp.updatedAt, 1000);
+});
+
+test('storage: mergeTripInMemory metaUpdatedAt protects group rename from expense-only update with newer updatedAt', () => {
+  const state = {
+    version: 1,
+    activeTripId: 'trip_meta_test',
+    activeIdentities: {},
+    trips: [
+      {
+        id: 'trip_meta_test',
+        name: 'Renamed Group Name',
+        organizerId: 'm1',
+        members: [{ id: 'm1', name: 'Aarav' }],
+        expenses: [],
+        settlements: [],
+        metaUpdatedAt: 300,
+        updatedAt: 300
+      }
+    ]
+  };
+
+  const payload = {
+    type: 'TRIPSPLIT_SYNC_V1',
+    trip: {
+      id: 'trip_meta_test',
+      name: 'Old Group Name',
+      organizerId: 'm1',
+      members: [{ id: 'm1', name: 'Aarav' }],
+      expenses: [
+        {
+          id: 'exp_new',
+          title: 'Snacks',
+          amountPaise: 2000,
+          revision: 1,
+          updatedAt: 500,
+          splits: [{ memberId: 'm1', amountPaise: 2000 }]
+        }
+      ],
+      settlements: [],
+      metaUpdatedAt: 100,
+      updatedAt: 500
+    }
+  };
+
+  mergeTripInMemory(state, payload);
+
+  const localTrip = state.trips[0];
+  // Group name is preserved because local metaUpdatedAt (300) > incoming metaUpdatedAt (100)
+  assert.equal(localTrip.name, 'Renamed Group Name');
+  assert.equal(localTrip.metaUpdatedAt, 300);
+  assert.equal(localTrip.updatedAt, 500);
+  assert.equal(localTrip.expenses.length, 1);
+  assert.equal(localTrip.expenses[0].id, 'exp_new');
+});

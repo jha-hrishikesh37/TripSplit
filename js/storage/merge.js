@@ -1,3 +1,10 @@
+function isIncomingNewer(inc, loc) {
+  const incRev = inc.revision || 0;
+  const locRev = loc.revision || 0;
+  if (incRev !== locRev) return incRev > locRev;
+  return (inc.updatedAt || 0) > (loc.updatedAt || 0);
+}
+
 /**
  * Idempotent Last-Write-Wins (LWW) Merge for a Trip in-memory.
  * Pure function: operates directly on state object without localStorage side-effects.
@@ -48,6 +55,7 @@ export function mergeTripInMemory(state, payload) {
       settlements: incomingTrip.settlements || [],
       createdAt: incomingTrip.createdAt || Date.now(),
       updatedAt: incomingTrip.updatedAt || Date.now(),
+      metaUpdatedAt: incomingTrip.metaUpdatedAt || incomingTrip.updatedAt || Date.now(),
       deleted: Boolean(incomingTrip.deleted)
     });
     state.activeTripId = incomingTrip.id;
@@ -59,13 +67,16 @@ export function mergeTripInMemory(state, payload) {
     return stats;
   }
 
-  // Merge with existing local trip using Last-Write-Wins on updatedAt
+  // Merge with existing local trip using Last-Write-Wins on updatedAt and metaUpdatedAt
   const localTrip = state.trips[localTripIndex];
 
-  if ((incomingTrip.updatedAt || 0) > (localTrip.updatedAt || 0)) {
+  if ((incomingTrip.metaUpdatedAt || incomingTrip.updatedAt || 0) > (localTrip.metaUpdatedAt || localTrip.updatedAt || 0)) {
     localTrip.name = incomingTrip.name;
     localTrip.organizerId = incomingTrip.organizerId;
     localTrip.deleted = Boolean(incomingTrip.deleted);
+    localTrip.metaUpdatedAt = incomingTrip.metaUpdatedAt || incomingTrip.updatedAt;
+  }
+  if ((incomingTrip.updatedAt || 0) > (localTrip.updatedAt || 0)) {
     localTrip.updatedAt = incomingTrip.updatedAt;
   }
 
@@ -77,19 +88,19 @@ export function mergeTripInMemory(state, payload) {
       memberMap.set(m.id, { ...m });
     } else {
       const localMem = memberMap.get(m.id);
-      const incTime = m.updatedAt || 0;
-      const locTime = localMem.updatedAt || 0;
-      if (
-        incTime > locTime ||
-        (incTime === locTime && localMem.name === 'Me (Organizer)' && m.name !== 'Me (Organizer)')
-      ) {
+      const isNewer = isIncomingNewer(m, localMem);
+      const isFallback = (m.revision || 0) === (localMem.revision || 0) &&
+        (m.updatedAt || 0) === (localMem.updatedAt || 0) &&
+        localMem.name === 'Me (Organizer)' &&
+        m.name !== 'Me (Organizer)';
+      if (isNewer || isFallback) {
         memberMap.set(m.id, { ...localMem, ...m });
       }
     }
   });
   localTrip.members = Array.from(memberMap.values());
 
-  // Merge expenses (LWW by expense.id and expense.updatedAt, including soft deletes)
+  // Merge expenses (LWW by expense.id and revision/updatedAt, including soft deletes)
   const expenseMap = new Map();
   (localTrip.expenses || []).forEach(e => expenseMap.set(e.id, e));
 
@@ -98,19 +109,19 @@ export function mergeTripInMemory(state, payload) {
     if (!existing) {
       expenseMap.set(incExp.id, incExp);
       if (!incExp.deleted) stats.addedExpenses++;
-    } else if ((incExp.updatedAt || 0) > (existing.updatedAt || 0)) {
+    } else if (isIncomingNewer(incExp, existing)) {
       expenseMap.set(incExp.id, incExp);
       stats.updatedExpenses++;
     }
   });
   localTrip.expenses = Array.from(expenseMap.values());
 
-  // Merge settlement records (LWW by settlement.id and settlement.updatedAt)
+  // Merge settlement records (LWW by settlement.id and revision/updatedAt)
   const settlementMap = new Map();
   (localTrip.settlements || []).forEach(s => settlementMap.set(s.id, s));
   (incomingTrip.settlements || []).forEach(incSet => {
     const existing = settlementMap.get(incSet.id);
-    if (!existing || (incSet.updatedAt || 0) > (existing.updatedAt || 0)) {
+    if (!existing || isIncomingNewer(incSet, existing)) {
       settlementMap.set(incSet.id, incSet);
     }
   });

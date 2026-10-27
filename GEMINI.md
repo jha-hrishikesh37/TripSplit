@@ -23,6 +23,11 @@
 - Do not change existing HTML `id` attributes or `data-*` attributes (event delegation depends on them).
 - Do not replace custom modals (`openConfirmModal`) with `window.confirm`, `window.alert`, or `window.prompt`.
 
-## 5. How to Verify Changes
-- Run unit tests via `node --test tests/domain.test.mjs`.
-- Check module syntax with `node --check <filepath>` before finishing.
+## 5. How to Verify Changes (Tiered Testing — Save Time & Tokens)
+- **Logic / Storage / Backend changes (`js/domain/*`, `js/storage/*`, `functions/*`):**
+  Run ONLY unit tests: `node --test tests/domain.test.mjs`
+  Do NOT run Playwright for pure logic or storage changes.
+- **UI / DOM / CSS changes (`index.html`, `css/*`, `js/ui/*`, `js/app.js`):**
+  Run syntax check first (`node --check <file>`), then run Playwright quietly:
+  `npx playwright test --reporter=line --max-failures=1`
+

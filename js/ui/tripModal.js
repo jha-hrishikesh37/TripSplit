@@ -87,6 +87,7 @@ export function renderTripMembersEditor() {
         const val = inlineInput.value.trim();
         if (val) {
           uiState.tempTripMembers[uiState.editingMemberIdx].name = val;
+          uiState.tempTripMembers[uiState.editingMemberIdx].revision = (uiState.tempTripMembers[uiState.editingMemberIdx].revision || 0) + 1;
           uiState.tempTripMembers[uiState.editingMemberIdx].updatedAt = Date.now();
           uiState.editingMemberIdx = null;
           renderTripMembersEditor();
@@ -114,6 +115,7 @@ export function renderTripMembersEditor() {
       const val = inp ? inp.value.trim() : '';
       if (val) {
         uiState.tempTripMembers[idx].name = val;
+        uiState.tempTripMembers[idx].revision = (uiState.tempTripMembers[idx].revision || 0) + 1;
         uiState.tempTripMembers[idx].updatedAt = Date.now();
         uiState.editingMemberIdx = null;
         renderTripMembersEditor();
@@ -169,6 +171,7 @@ export function handleSaveTrip(e) {
     const inlineVal = inlineInp ? inlineInp.value.trim() : '';
     if (inlineVal && uiState.tempTripMembers[uiState.editingMemberIdx]) {
       uiState.tempTripMembers[uiState.editingMemberIdx].name = inlineVal;
+      uiState.tempTripMembers[uiState.editingMemberIdx].revision = (uiState.tempTripMembers[uiState.editingMemberIdx].revision || 0) + 1;
       uiState.tempTripMembers[uiState.editingMemberIdx].updatedAt = Date.now();
     }
     uiState.editingMemberIdx = null;
@@ -209,6 +212,7 @@ export function handleSaveTrip(e) {
       trip.members = cleanedMembers;
       trip.organizerId = cleanedMembers[0].id;
       trip.updatedAt = now;
+      trip.metaUpdatedAt = now;
       showToast('Group updated!');
     }
   } else {
@@ -223,6 +227,7 @@ export function handleSaveTrip(e) {
       settlements: [],
       createdAt: now,
       updatedAt: now,
+      metaUpdatedAt: now,
       deleted: false
     };
     if (!Array.isArray(uiState.appState.trips)) uiState.appState.trips = [];
@@ -254,8 +259,10 @@ export function confirmDeleteCurrentGroup() {
     `<p style="margin-bottom:8px; font-weight:600; color:var(--text-main);">Are you sure you want to delete "${escapeHtml(trip.name)}"?</p>
      <p style="font-size:0.875rem; color:var(--text-muted); line-height:1.45;">${details} All expenses, settlement checklists, and member records in this group will be deleted. This action cannot be undone.</p>`,
     () => {
+      const now = Date.now();
       trip.deleted = true;
-      trip.updatedAt = Date.now();
+      trip.updatedAt = now;
+      trip.metaUpdatedAt = now;
       const remainingTrips = (uiState.appState?.trips || []).filter(t => !t.deleted);
       if (remainingTrips.length > 0) {
         uiState.appState.activeTripId = remainingTrips[0].id;
@@ -313,6 +320,7 @@ export function handleSaveRenameMember(e) {
   if (member) {
     const oldName = member.name;
     member.name = newName;
+    member.revision = (member.revision || 0) + 1;
     member.updatedAt = Date.now();
     trip.updatedAt = Date.now();
     StorageService.saveState(uiState.appState);

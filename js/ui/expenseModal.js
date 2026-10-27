@@ -296,6 +296,7 @@ export function handleSaveExpense(e) {
         date,
         splitType: uiState.currentSplitType,
         splits: splitCalc.splits,
+        revision: (trip.expenses[idx].revision || 1) + 1,
         updatedAt: safeUpdatedAt
       };
       trip.updatedAt = safeUpdatedAt;
@@ -316,6 +317,7 @@ export function handleSaveExpense(e) {
       createdBy: activeMemberId,
       createdAt: now,
       updatedAt: now,
+      revision: 1,
       deleted: false
     });
     trip.updatedAt = now;

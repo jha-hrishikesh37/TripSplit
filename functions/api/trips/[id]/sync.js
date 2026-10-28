@@ -1,6 +1,48 @@
 import { mergeTripInMemory } from '../../../../js/storage/merge.js';
 import { CONFIG } from '../../../../js/config.js';
 
+const SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS trips (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  organizer_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  meta_updated_at INTEGER NOT NULL DEFAULT 0,
+  deleted INTEGER NOT NULL DEFAULT 0,
+  trip_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_trips_updated_at ON trips(updated_at);`;
+
+let schemaInitialized = false;
+
+async function ensureSchema(db) {
+  if (schemaInitialized || !db) return;
+  try {
+    if (typeof db.exec === 'function') {
+      await db.exec(SCHEMA_SQL);
+    } else if (typeof db.batch === 'function' && typeof db.prepare === 'function') {
+      await db.batch([
+        db.prepare(`CREATE TABLE IF NOT EXISTS trips (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          currency TEXT NOT NULL DEFAULT 'INR',
+          organizer_id TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          meta_updated_at INTEGER NOT NULL DEFAULT 0,
+          deleted INTEGER NOT NULL DEFAULT 0,
+          trip_json TEXT NOT NULL
+        )`),
+        db.prepare(`CREATE INDEX IF NOT EXISTS idx_trips_updated_at ON trips(updated_at)`)
+      ]);
+    }
+    schemaInitialized = true;
+  } catch (err) {
+    console.warn('ensureSchema warning:', err?.message || err);
+  }
+}
+
 function createTripsContainer() {
   const arr = [];
   return new Proxy(arr, {
@@ -35,9 +77,24 @@ export async function onRequestGet(context) {
     });
   }
 
-  const row = await context.env.DB.prepare('SELECT trip_json FROM trips WHERE id = ?1')
-    .bind(tripId)
-    .first();
+  await ensureSchema(context.env.DB);
+
+  let row;
+  try {
+    row = await context.env.DB.prepare('SELECT trip_json FROM trips WHERE id = ?1')
+      .bind(tripId)
+      .first();
+  } catch (err) {
+    if (String(err?.message || err).includes('no such table')) {
+      schemaInitialized = false;
+      await ensureSchema(context.env.DB);
+      row = await context.env.DB.prepare('SELECT trip_json FROM trips WHERE id = ?1')
+        .bind(tripId)
+        .first();
+    } else {
+      throw err;
+    }
+  }
 
   if (!row || !row.trip_json) {
     return new Response(JSON.stringify({ ok: false, error: 'Trip not found in cloud' }), {
@@ -90,9 +147,24 @@ export async function onRequestPost(context) {
     });
   }
 
-  const row = await context.env.DB.prepare('SELECT trip_json FROM trips WHERE id = ?1')
-    .bind(tripId)
-    .first();
+  await ensureSchema(context.env.DB);
+
+  let row;
+  try {
+    row = await context.env.DB.prepare('SELECT trip_json FROM trips WHERE id = ?1')
+      .bind(tripId)
+      .first();
+  } catch (err) {
+    if (String(err?.message || err).includes('no such table')) {
+      schemaInitialized = false;
+      await ensureSchema(context.env.DB);
+      row = await context.env.DB.prepare('SELECT trip_json FROM trips WHERE id = ?1')
+        .bind(tripId)
+        .first();
+    } else {
+      throw err;
+    }
+  }
 
   const state = {
     version: CONFIG.SCHEMA_VERSION || 1,
@@ -124,19 +196,41 @@ ON CONFLICT(id) DO UPDATE SET
   deleted = excluded.deleted,
   trip_json = excluded.trip_json`;
 
-  await context.env.DB.prepare(UPSERT_SQL)
-    .bind(
-      mergedTrip.id,
-      mergedTrip.name || 'Untitled Trip',
-      mergedTrip.currency || 'INR',
-      mergedTrip.organizerId || '',
-      mergedTrip.createdAt || Date.now(),
-      mergedTrip.updatedAt || Date.now(),
-      mergedTrip.metaUpdatedAt || mergedTrip.updatedAt || Date.now(),
-      mergedTrip.deleted ? 1 : 0,
-      JSON.stringify(mergedTrip)
-    )
-    .run();
+  try {
+    await context.env.DB.prepare(UPSERT_SQL)
+      .bind(
+        mergedTrip.id,
+        mergedTrip.name || 'Untitled Trip',
+        mergedTrip.currency || 'INR',
+        mergedTrip.organizerId || '',
+        mergedTrip.createdAt || Date.now(),
+        mergedTrip.updatedAt || Date.now(),
+        mergedTrip.metaUpdatedAt || mergedTrip.updatedAt || Date.now(),
+        mergedTrip.deleted ? 1 : 0,
+        JSON.stringify(mergedTrip)
+      )
+      .run();
+  } catch (err) {
+    if (String(err?.message || err).includes('no such table')) {
+      schemaInitialized = false;
+      await ensureSchema(context.env.DB);
+      await context.env.DB.prepare(UPSERT_SQL)
+        .bind(
+          mergedTrip.id,
+          mergedTrip.name || 'Untitled Trip',
+          mergedTrip.currency || 'INR',
+          mergedTrip.organizerId || '',
+          mergedTrip.createdAt || Date.now(),
+          mergedTrip.updatedAt || Date.now(),
+          mergedTrip.metaUpdatedAt || mergedTrip.updatedAt || Date.now(),
+          mergedTrip.deleted ? 1 : 0,
+          JSON.stringify(mergedTrip)
+        )
+        .run();
+    } else {
+      throw err;
+    }
+  }
 
   return new Response(JSON.stringify({ ok: true, trip: mergedTrip, stats }), {
     status: 200,

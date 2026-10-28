@@ -976,6 +976,66 @@ test('backend sync: error cases for onRequestGet and onRequestPost', async () =>
   assert.equal(bodyMismatch.error, 'Trip ID mismatch or invalid payload');
 });
 
+test('backend sync: auto-initializes trips schema when table is missing and recovers', async () => {
+  let execCalled = false;
+  let tableCreated = false;
+  const store = new Map();
+
+  const mockDbWithRecovery = {
+    exec: async (sql) => {
+      execCalled = true;
+      tableCreated = true;
+    },
+    prepare: (sql) => {
+      let bound = [];
+      const stmt = {
+        bind: (...args) => {
+          bound = args;
+          return stmt;
+        },
+        first: async () => {
+          if (!tableCreated) {
+            throw new Error('D1_ERROR: no such table: trips: SQLITE_ERROR');
+          }
+          return null;
+        },
+        run: async () => {
+          if (!tableCreated) {
+            throw new Error('D1_ERROR: no such table: trips: SQLITE_ERROR');
+          }
+          store.set(bound[0], { trip_json: bound[8] });
+          return { success: true };
+        }
+      };
+      return stmt;
+    }
+  };
+
+  const tripId = 'trip_recover_test';
+  const tripPayload = {
+    id: tripId,
+    name: 'Auto Init Trip',
+    members: [{ id: 'm1', name: 'User' }],
+    expenses: [],
+    settlements: [],
+    createdAt: 1000,
+    updatedAt: 1000
+  };
+
+  // Calling onRequestPost on an uninitialized DB will auto-run ensureSchema and recover
+  const res = await onRequestPost({
+    params: { id: tripId },
+    env: { DB: mockDbWithRecovery },
+    request: { json: async () => ({ app: 'TripSplit', version: 1, trip: tripPayload }) }
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(execCalled, true);
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.trip.id, tripId);
+});
+
 test('storage: onSyncStatusChange and getSyncStatus manage listeners and status state', () => {
   const events = [];
   const unsubscribe = onSyncStatusChange(evt => {

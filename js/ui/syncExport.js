@@ -81,6 +81,8 @@ export function exportTripToCSV(trip) {
 export function promptIdentitySelection(tripId) {
   const trip = (uiState.appState?.trips || []).find(t => t.id === tripId && !t.deleted);
   if (!trip) return;
+  uiState.appState.activeTripId = trip.id;
+  StorageService.saveState(uiState.appState);
   const subtitleEl = document.getElementById('welcomeTripSubtitle');
   if (subtitleEl) {
     subtitleEl.textContent =
@@ -102,6 +104,7 @@ export function promptIdentitySelection(tripId) {
         uiState.appState.activeIdentities = {};
       }
       uiState.appState.activeIdentities[trip.id] = btn.dataset.pickIdentity;
+      uiState.appState.activeTripId = trip.id;
       StorageService.saveState(uiState.appState);
       const modalEl = document.getElementById('welcomeIdentityModal');
       if (modalEl) modalEl.classList.remove('open');
@@ -127,6 +130,8 @@ export async function checkUrlForSyncPayload() {
     try {
       const payload = StorageService.decodePayloadFromBase64(combined);
       const stats = StorageService.mergeTripPayload(uiState.appState, payload);
+      uiState.appState.activeTripId = stats.tripId;
+      StorageService.saveState(uiState.appState);
       // Clean URL hash so refreshing doesn't re-trigger modal
       if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
         window.history.replaceState(null, '', window.location.pathname);
@@ -148,6 +153,8 @@ export async function checkUrlForSyncPayload() {
         showToast('Could not load trip from cloud.');
         return;
       }
+      uiState.appState.activeTripId = tripId;
+      StorageService.saveState(uiState.appState);
       if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
         window.history.replaceState(null, '', window.location.pathname);
       }

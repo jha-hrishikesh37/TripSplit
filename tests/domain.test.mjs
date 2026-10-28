@@ -1609,3 +1609,58 @@ test('receipt scan backend: empty or missing imageBase64 returns status 400', as
   assert.equal(dataBadJson.ok, false);
   assert.equal(dataBadJson.error, 'Invalid receipt image payload');
 });
+
+test('backend sync: onRequestPost updates deleted column to 1 when a trip is deleted', async () => {
+  const mockDB = createMockD1Database();
+  const tripId = 'trip_del_sync_test';
+
+  const activeTrip = {
+    id: tripId,
+    name: 'Goa Trip',
+    currency: 'INR',
+    organizerId: 'mem_1',
+    members: [{ id: 'mem_1', name: 'Alice', updatedAt: 100, revision: 1 }],
+    expenses: [],
+    settlements: [],
+    createdAt: 100,
+    updatedAt: 100,
+    metaUpdatedAt: 100,
+    deleted: false
+  };
+
+  mockDB._store.set(tripId, {
+    id: tripId,
+    name: activeTrip.name,
+    currency: activeTrip.currency,
+    organizer_id: activeTrip.organizerId,
+    created_at: activeTrip.createdAt,
+    updated_at: activeTrip.updatedAt,
+    meta_updated_at: activeTrip.metaUpdatedAt,
+    deleted: 0,
+    trip_json: JSON.stringify(activeTrip)
+  });
+
+  const deletedTrip = {
+    ...activeTrip,
+    deleted: true,
+    updatedAt: 200,
+    metaUpdatedAt: 200
+  };
+
+  const context = {
+    params: { id: tripId },
+    env: { DB: mockDB },
+    request: {
+      json: async () => ({ trip: deletedTrip })
+    }
+  };
+
+  const res = await onRequestPost(context);
+  assert.equal(res.status, 200);
+
+  const storedRow = mockDB._store.get(tripId);
+  assert.ok(storedRow);
+  assert.equal(storedRow.deleted, 1);
+  const storedJson = JSON.parse(storedRow.trip_json);
+  assert.equal(storedJson.deleted, true);
+});

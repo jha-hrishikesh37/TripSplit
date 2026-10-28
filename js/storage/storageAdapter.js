@@ -100,7 +100,7 @@ export function saveState(state, opts = {}) {
     console.error('Failed to save state to localStorage:', err);
   }
   if (!opts?.skipCloud) {
-    scheduleCloudSync(state);
+    scheduleCloudSync(state, opts?.tripId ?? state?.activeTripId);
   }
 }
 
@@ -160,7 +160,7 @@ export async function syncTripWithCloud(state, tripId = state?.activeTripId) {
       version: CONFIG.SCHEMA_VERSION,
       trip: data.trip
     });
-    if (previousActiveTripId && previousActiveTripId !== tripId) {
+    if (previousActiveTripId !== undefined && previousActiveTripId !== tripId) {
       state.activeTripId = previousActiveTripId;
     }
     saveState(state, { skipCloud: true });
@@ -203,7 +203,9 @@ export async function pullTripFromCloud(state, tripId) {
         version: CONFIG.SCHEMA_VERSION,
         trip: data.trip
       });
-      state.activeTripId = tripId;
+      if (!data.trip.deleted) {
+        state.activeTripId = tripId;
+      }
       saveState(state, { skipCloud: true });
       notifySyncStatus('synced', { tripId, stats });
       const finalTrip = getTripFromState(state, tripId) || state?.trips?.[tripId];

@@ -260,6 +260,7 @@ export function confirmDeleteCurrentGroup() {
      <p style="font-size:0.875rem; color:var(--text-muted); line-height:1.45;">${details} All expenses, settlement checklists, and member records in this group will be deleted. This action cannot be undone.</p>`,
     () => {
       const now = Date.now();
+      const deletedTripId = trip.id;
       trip.deleted = true;
       trip.updatedAt = now;
       trip.metaUpdatedAt = now;
@@ -269,7 +270,8 @@ export function confirmDeleteCurrentGroup() {
       } else {
         uiState.appState.activeTripId = null;
       }
-      StorageService.saveState(uiState.appState);
+      StorageService.saveState(uiState.appState, { skipCloud: true });
+      StorageService.syncTripWithCloud(uiState.appState, deletedTripId);
       const tripModal = document.getElementById('tripModal');
       if (tripModal) tripModal.classList.remove('open');
       renderAll();

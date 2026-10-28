@@ -443,7 +443,8 @@ export function bindEvents() {
       const tripId = tripMatch[1];
       try {
         const res = await StorageService.pullTripFromCloud(uiState.appState, tripId);
-        if (res && res.ok === false) {
+        if (res && (res.ok === false || res.trip?.deleted)) {
+          if (res?.trip?.deleted) { showToast('This group was deleted by the organizer.'); renderAll(); return; }
           showToast('Could not load trip from cloud.');
           return;
         }

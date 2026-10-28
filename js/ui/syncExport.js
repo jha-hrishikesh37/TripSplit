@@ -114,6 +114,11 @@ export function promptIdentitySelection(tripId) {
   if (modalEl) modalEl.classList.add('open');
 }
 
+export function buildCloudInviteUrl(tripId) {
+  const baseUrl = window.location.origin + window.location.pathname;
+  return `${baseUrl}#trip=${encodeURIComponent(tripId)}`;
+}
+
 export async function checkUrlForSyncPayload() {
   const hash = typeof window !== 'undefined' ? window.location.hash || '' : '';
   const search = typeof window !== 'undefined' ? window.location.search || '' : '';
@@ -138,10 +143,15 @@ export async function checkUrlForSyncPayload() {
   if (tripMatch && tripMatch[1]) {
     const tripId = tripMatch[1];
     try {
-      await StorageService.pullTripFromCloud(uiState.appState, tripId);
+      const res = await StorageService.pullTripFromCloud(uiState.appState, tripId);
+      if (res && res.ok === false) {
+        showToast('Could not load trip from cloud.');
+        return;
+      }
       if (typeof window !== 'undefined' && window.history && window.history.replaceState) {
         window.history.replaceState(null, '', window.location.pathname);
       }
+      showToast('Trip loaded from cloud!');
       renderAll();
       promptIdentitySelection(tripId);
     } catch (err) {

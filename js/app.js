@@ -40,7 +40,8 @@ import {
   buildSettlementSummaryText,
   exportTripToCSV,
   promptIdentitySelection,
-  checkUrlForSyncPayload
+  checkUrlForSyncPayload,
+  buildCloudInviteUrl
 } from './ui/syncExport.js';
 
 export function bindEvents() {
@@ -300,6 +301,13 @@ export function bindEvents() {
   });
 
   // Sync Tab Actions
+  document.getElementById('btnCopyCloudLink')?.addEventListener('click', () => {
+    const trip = getActiveTrip();
+    if (!trip) return;
+    StorageService.syncTripWithCloud(uiState.appState, trip.id);
+    copyTextToClipboard(buildCloudInviteUrl(trip.id), 'Cloud invite link copied!');
+  });
+
   document.getElementById('btnCopySyncCode')?.addEventListener('click', () => {
     const code = document.getElementById('syncCodeOutput')?.value || '';
     copyTextToClipboard(code, 'Sync code copied! Paste it in WhatsApp.');
@@ -308,9 +316,9 @@ export function bindEvents() {
   document.getElementById('btnWhatsAppSyncLink')?.addEventListener('click', () => {
     const trip = getActiveTrip();
     if (!trip) return;
+    StorageService.syncTripWithCloud(uiState.appState, trip.id);
     const code = document.getElementById('syncCodeOutput')?.value || '';
-    const baseUrl = window.location.href.split('#')[0].split('?')[0];
-    const inviteLink = `${baseUrl}#sync=${encodeURIComponent(code)}`;
+    const inviteLink = buildCloudInviteUrl(trip.id);
     const message = [
       `🎒 *${trip.name} — TripSplit Sync*`,
       `Open our offline trip bill-splitter or paste the sync code below to add your expenses and merge:`,

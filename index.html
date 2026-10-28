@@ -287,6 +287,21 @@
             <button type="button" class="split-tab-btn active" data-split-type="EQUAL">Equal</button>
             <button type="button" class="split-tab-btn" data-split-type="EXACT">Custom (₹)</button>
             <button type="button" class="split-tab-btn" data-split-type="PERCENT">Percent (%)</button>
+            <button type="button" class="split-tab-btn" data-split-type="ITEMIZED">🧾 Itemized</button>
+          </div>
+
+          <div id="itemizedSplitSection" class="itemized-split-section" style="display: none;">
+            <div id="itemizedRowsContainer" class="itemized-rows-container"></div>
+            <div class="itemized-controls-row">
+              <button type="button" id="btnAddItemRow" class="btn btn-secondary btn-sm">+ Add Dish / Item</button>
+              <input type="file" id="receiptFileInput" accept="image/*" capture="environment" style="display: none;" />
+              <button type="button" id="btnScanReceipt" class="btn btn-secondary btn-sm">📷 Scan Receipt</button>
+              <div class="itemized-tax-group">
+                <label for="expTaxTipInput">Tax / Tip / Extra (₹)</label>
+                <input type="number" id="expTaxTipInput" class="form-control" step="0.01" min="0" placeholder="0.00" value="0" />
+              </div>
+            </div>
+            <div id="itemizedMemberPreview" class="itemized-member-preview"></div>
           </div>
 
           <div id="splitMembersContainer" class="split-members-list"></div>

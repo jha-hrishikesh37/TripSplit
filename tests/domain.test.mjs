@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { CONFIG } from '../js/config.js';
 import { rupeesToPaise, formatPaise, getLocalTodayStr } from '../js/domain/money.js';
-import { calculateSplits } from '../js/domain/splits.js';
+import { calculateSplits, calculateItemizedSplits } from '../js/domain/splits.js';
 import { computeTripSettlement } from '../js/domain/settlement.js';
 import { canModifyExpense, canRemoveMember } from '../js/domain/permissions.js';
 import { createInitialDemoState } from '../js/storage/seed.js';
@@ -25,6 +25,7 @@ import {
   loadState
 } from '../js/storage/storageAdapter.js';
 import { onRequestGet, onRequestPost } from '../functions/api/trips/[id]/sync.js';
+import { onRequestPost as onRequestPostReceiptScan } from '../functions/api/receipt/scan.js';
 
 test('CONFIG invariants', () => {
   assert.equal(CONFIG.APP_STORAGE_KEY, 'tripsplit_v1_state');
@@ -142,6 +143,104 @@ test('splits: EXACT split matching vs under-allocated', () => {
   assert.equal(exactResult.isValid, true);
   assert.equal(exactResult.allocatedPaise, 10000);
   assert.equal(exactResult.diffPaise, 0);
+});
+
+test('splits: calculateItemizedSplits 2 items with proportional taxTipPaise', () => {
+  const items = [
+    { name: 'Pizza', pricePaise: 30000, sharedBy: ['mem_b', 'mem_a'] },
+    { name: 'Drink', pricePaise: 10000, sharedBy: ['mem_a'] }
+  ];
+  const taxTipPaise = 4000;
+
+  const result = calculateItemizedSplits(items, taxTipPaise, ['mem_a', 'mem_b']);
+  assert.equal(result.isValid, true);
+  assert.equal(result.subtotalPaise, 40000);
+  assert.equal(result.totalPaise, 44000);
+  assert.equal(result.taxTipPaise, 4000);
+  assert.equal(result.allocatedPaise, 44000);
+  assert.equal(result.diffPaise, 0);
+
+  const splitA = result.splits.find(s => s.memberId === 'mem_a');
+  const splitB = result.splits.find(s => s.memberId === 'mem_b');
+  assert.ok(splitA);
+  assert.ok(splitB);
+  assert.equal(splitA.amountPaise, 27500); // 25000 + 2500
+  assert.equal(splitA.metaValue, 25000);
+  assert.equal(splitB.amountPaise, 16500); // 15000 + 1500
+  assert.equal(splitB.metaValue, 15000);
+
+  const sumSplits = result.splits.reduce((sum, s) => sum + s.amountPaise, 0);
+  assert.equal(sumSplits, 44000);
+
+  // Also verify delegation via calculateSplits with ITEMIZED splitType
+  const viaDelegate = calculateSplits(44000, 'ITEMIZED', null, {
+    items,
+    taxTipPaise,
+    validMemberIds: ['mem_a', 'mem_b']
+  });
+  assert.equal(viaDelegate.isValid, true);
+  assert.equal(viaDelegate.allocatedPaise, 44000);
+  assert.deepEqual(viaDelegate.splits, result.splits);
+});
+
+test('splits: calculateItemizedSplits indivisible item and tax deterministic remainder distribution', () => {
+  const items = [
+    { name: 'Lunch', pricePaise: 10000, sharedBy: ['mem_c', 'mem_a', 'mem_b'] }
+  ];
+  const taxTipPaise = 100;
+
+  const result = calculateItemizedSplits(items, taxTipPaise);
+  assert.equal(result.isValid, true);
+  assert.equal(result.subtotalPaise, 10000);
+  assert.equal(result.totalPaise, 10100);
+
+  const splitA = result.splits.find(s => s.memberId === 'mem_a');
+  const splitB = result.splits.find(s => s.memberId === 'mem_b');
+  const splitC = result.splits.find(s => s.memberId === 'mem_c');
+  assert.ok(splitA);
+  assert.ok(splitB);
+  assert.ok(splitC);
+
+  // Item 10000 across 3 members: base 3333, rem 1 -> mem_a gets 3334, mem_b gets 3333, mem_c gets 3333.
+  // Tax 100: mem_a floor 33, rem 3400; mem_b floor 33, rem 3300; mem_c floor 33, rem 3300.
+  // Remainder tax 1 paisa goes to mem_a.
+  assert.equal(splitA.amountPaise, 3368);
+  assert.equal(splitB.amountPaise, 3366);
+  assert.equal(splitC.amountPaise, 3366);
+
+  const sumSplits = result.splits.reduce((sum, s) => sum + s.amountPaise, 0);
+  assert.equal(sumSplits, 10100);
+});
+
+test('splits: calculateItemizedSplits validation failure cases', () => {
+  // Empty items
+  const resEmpty = calculateItemizedSplits([]);
+  assert.equal(resEmpty.isValid, false);
+  assert.equal(resEmpty.message, 'Add at least one bill item');
+
+  // Negative tax/tip
+  const resNegTax = calculateItemizedSplits([{ name: 'Coffee', pricePaise: 500, sharedBy: ['m1'] }], -10);
+  assert.equal(resNegTax.isValid, false);
+  assert.equal(resNegTax.message, 'Tax/tip cannot be negative');
+
+  // pricePaise: 0
+  const resZeroPrice = calculateItemizedSplits([{ name: 'Water', pricePaise: 0, sharedBy: ['m1'] }]);
+  assert.equal(resZeroPrice.isValid, false);
+  assert.equal(resZeroPrice.message, 'Every item must have a price greater than ₹0');
+
+  // empty sharedBy: []
+  const resEmptySharers = calculateItemizedSplits([{ name: 'Salad', pricePaise: 1000, sharedBy: [] }]);
+  assert.equal(resEmptySharers.isValid, false);
+  assert.equal(resEmptySharers.message, 'Select at least one person for "Salad"');
+
+  // sharedBy filtered out by validMemberIds
+  const resFilteredOut = calculateItemizedSplits(
+    [{ name: 'Bread', pricePaise: 500, sharedBy: ['m_ghost'] }],
+    0,
+    ['m_real']
+  );
+  assert.equal(resFilteredOut.isValid, false);
+  assert.equal(resFilteredOut.message, 'Select at least one person for "Bread"');
 });
 
 test('settlement: computeTripSettlement 1-paisa net balance and zero-sum invariant', () => {
@@ -407,6 +506,78 @@ test('storage: mergeTripInMemory sanitizes float amountPaise and filters invalid
   assert.equal(importedTrip.expenses[0].id, 'exp_float');
   assert.equal(importedTrip.expenses[0].amountPaise, 123);
   assert.equal(importedTrip.expenses[0].splits[0].amountPaise, 123);
+});
+
+test('storage: mergeTripInMemory preserves items and taxTipPaise on ITEMIZED expense and rounds floats', () => {
+  const state = {
+    version: 1,
+    activeTripId: null,
+    activeIdentities: {},
+    trips: []
+  };
+
+  const payload = {
+    type: 'TRIPSPLIT_SYNC_V1',
+    trip: {
+      id: 'trip_itemized_sync',
+      name: 'Itemized Dinner',
+      organizerId: 'mem_1',
+      members: [
+        { id: 'mem_1', name: 'Alice' },
+        { id: 'mem_2', name: 'Bob' }
+      ],
+      expenses: [
+        {
+          id: 'exp_itemized_1',
+          description: 'Dinner with Items',
+          splitType: 'ITEMIZED',
+          amountPaise: 4400.4,
+          taxTipPaise: 400.6,
+          paidBy: 'mem_1',
+          createdAt: 1000,
+          updatedAt: 1000,
+          splits: [
+            { memberId: 'mem_1', amountPaise: 2750.2 },
+            { memberId: 'mem_2', amountPaise: 1650.2 }
+          ],
+          items: [
+            {
+              id: 'it_1',
+              name: '  Tacos  ',
+              pricePaise: 2999.4,
+              sharedBy: ['mem_1', 'mem_2']
+            },
+            {
+              id: 'it_2',
+              name: 'Drink',
+              pricePaise: 1000.2,
+              sharedBy: ['mem_1']
+            }
+          ]
+        }
+      ],
+      settlements: [],
+      createdAt: 1000,
+      updatedAt: 1000
+    }
+  };
+
+  mergeTripInMemory(state, payload);
+  assert.equal(state.trips.length, 1);
+  const trip = state.trips[0];
+  assert.equal(trip.expenses.length, 1);
+  const exp = trip.expenses[0];
+
+  assert.equal(exp.splitType, 'ITEMIZED');
+  assert.equal(exp.amountPaise, 4400);
+  assert.equal(exp.taxTipPaise, 401);
+  assert.equal(exp.items.length, 2);
+  assert.equal(exp.items[0].id, 'it_1');
+  assert.equal(exp.items[0].name, 'Tacos');
+  assert.equal(exp.items[0].pricePaise, 2999);
+  assert.deepEqual(exp.items[0].sharedBy, ['mem_1', 'mem_2']);
+  assert.equal(exp.items[1].pricePaise, 1000);
+  assert.deepEqual(exp.items[1].sharedBy, ['mem_1']);
 });
 
 test('storage: mergeTripInMemory preserves soft-deleted expense against older incoming edit', () => {
@@ -1385,4 +1556,56 @@ test('storage: pullTripFromCloud switches activeTripId to pulled trip and backgr
     globalThis.fetch = origFetch;
     globalThis.localStorage = origLocalStorage;
   }
+});
+
+test('receipt scan backend: missing GEMINI_API_KEY returns status 503', async () => {
+  const context = {
+    env: {},
+    request: {
+      json: async () => ({ imageBase64: 'dGVzdA==' })
+    }
+  };
+  const res = await onRequestPostReceiptScan(context);
+  assert.equal(res.status, 503);
+  const data = await res.json();
+  assert.equal(data.ok, false);
+  assert.equal(data.error, 'Receipt scanning is not configured on this server (missing GEMINI_API_KEY).');
+});
+
+test('receipt scan backend: empty or missing imageBase64 returns status 400', async () => {
+  const resMissing = await onRequestPostReceiptScan({
+    env: { GEMINI_API_KEY: 'mock-key' },
+    request: { json: async () => ({}) }
+  });
+  assert.equal(resMissing.status, 400);
+  const dataMissing = await resMissing.json();
+  assert.equal(dataMissing.ok, false);
+  assert.equal(dataMissing.error, 'Invalid receipt image payload');
+
+  const resEmpty = await onRequestPostReceiptScan({
+    env: { GEMINI_API_KEY: 'mock-key' },
+    request: { json: async () => ({ imageBase64: '   ' }) }
+  });
+  assert.equal(resEmpty.status, 400);
+  const dataEmpty = await resEmpty.json();
+  assert.equal(dataEmpty.ok, false);
+  assert.equal(dataEmpty.error, 'Invalid receipt image payload');
+
+  const resInvalidType = await onRequestPostReceiptScan({
+    env: { GEMINI_API_KEY: 'mock-key' },
+    request: { json: async () => ({ imageBase64: 12345 }) }
+  });
+  assert.equal(resInvalidType.status, 400);
+  const dataInvalidType = await resInvalidType.json();
+  assert.equal(dataInvalidType.ok, false);
+  assert.equal(dataInvalidType.error, 'Invalid receipt image payload');
+
+  const resBadJson = await onRequestPostReceiptScan({
+    env: { GEMINI_API_KEY: 'mock-key' },
+    request: { json: async () => { throw new Error('Bad JSON'); } }
+  });
+  assert.equal(resBadJson.status, 400);
+  const dataBadJson = await resBadJson.json();
+  assert.equal(dataBadJson.ok, false);
+  assert.equal(dataBadJson.error, 'Invalid receipt image payload');
 });

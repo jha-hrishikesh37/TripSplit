@@ -206,7 +206,7 @@ export function renderExpensesTab(trip, activeMemberId) {
             <div class="exp-meta">
               <span>Paid by <strong>${escapeHtml(payerName)}</strong></span>
               <span>•</span>
-              <span>Split (${escapeHtml(String(exp.splitType || '').toLowerCase())}) among ${splitCount}</span>
+              <span>${exp.splitType === 'ITEMIZED' ? `🧾 Itemized (${(exp.items || []).length} items)` : `Split (${escapeHtml(String(exp.splitType || '').toLowerCase())}) among ${splitCount}`}</span>
               <span>•</span>
               <span>${escapeHtml(exp.date)}</span>
             </div>

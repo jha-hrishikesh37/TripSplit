@@ -7,7 +7,9 @@ export const uiState = {
   currentSplitType: 'EQUAL',
   tempTripMembers: [],
   editingMemberIdx: null,
-  pendingConfirmCallback: null
+  pendingConfirmCallback: null,
+  tempExpenseItems: [],
+  tempTaxTipRupees: ''
 };
 
 export function initAppState() {

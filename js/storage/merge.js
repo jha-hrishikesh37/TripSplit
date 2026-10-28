@@ -22,14 +22,26 @@ export function mergeTripInMemory(state, payload) {
     exp && typeof exp.id === 'string' &&
     Number.isFinite(Number(exp.amountPaise)) && Number(exp.amountPaise) > 0 &&
     Array.isArray(exp.splits)
-  ).map(exp => ({
-    ...exp,
+  ).map(exp => {
+    const sanitizedExp = {
+      ...exp,
     amountPaise: Math.round(Number(exp.amountPaise)),
     splits: exp.splits.map(s => ({
       ...s,
       amountPaise: Math.round(Number(s.amountPaise || 0))
     }))
-  }));
+    };
+    if (exp.splitType === 'ITEMIZED' || Array.isArray(exp.items)) {
+      sanitizedExp.taxTipPaise = Math.max(0, Math.round(Number(exp.taxTipPaise || 0)));
+      sanitizedExp.items = (Array.isArray(exp.items) ? exp.items : []).map(it => ({
+        id: String(it?.id || ''),
+        name: String(it?.name || '').trim(),
+        pricePaise: Math.max(0, Math.round(Number(it?.pricePaise || 0))),
+        sharedBy: Array.isArray(it?.sharedBy) ? it.sharedBy.map(String) : []
+      }));
+    }
+    return sanitizedExp;
+  });
   const localTripIndex = state.trips.findIndex(t => t.id === incomingTrip.id);
 
   let stats = {

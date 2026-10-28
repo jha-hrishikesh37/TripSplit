@@ -840,7 +840,7 @@
     /* Split Selector & Live Check */
     .split-type-tabs {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 6px;
       background: var(--bg-subtle);
       padding: 4px;
@@ -919,6 +919,164 @@
     .split-live-check.invalid {
       background: var(--danger-soft);
       color: var(--danger-text);
+    }
+
+    /* Itemized Split Editor */
+    .itemized-split-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .itemized-rows-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .itemized-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+    }
+
+    .itemized-row-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .item-name-input {
+      flex: 1;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+    }
+
+    .item-price-input {
+      width: 90px;
+      padding: 6px 8px;
+      font-size: 0.85rem;
+    }
+
+    .btn-remove-item {
+      padding: 4px 8px;
+      font-size: 0.78rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .btn-remove-item:hover:not(:disabled) {
+      color: var(--danger);
+      background: var(--danger-soft);
+      border-color: var(--danger);
+    }
+
+    .btn-remove-item:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .item-sharers-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .item-sharer-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .item-sharer-pill:hover {
+      border-color: var(--primary);
+      color: var(--text-main);
+    }
+
+    .item-sharer-pill.active {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .itemized-controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-top: 2px;
+      flex-wrap: wrap;
+    }
+
+    .itemized-tax-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .itemized-tax-group label {
+      margin-bottom: 0;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .itemized-tax-group input {
+      width: 85px;
+      padding: 5px 8px;
+      font-size: 0.85rem;
+    }
+
+    .itemized-member-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-subtle);
+      font-size: 0.78rem;
+    }
+
+    .itemized-member-preview:empty {
+      display: none;
+    }
+
+    .itemized-member-share {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-main);
     }
 
     /* Empty State */

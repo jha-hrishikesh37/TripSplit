@@ -1,9 +1,9 @@
 import { CONFIG } from '../config.js';
 import { rupeesToPaise, formatPaise, getLocalTodayStr } from '../domain/money.js';
-import { calculateSplits } from '../domain/splits.js';
+import { calculateSplits, calculateItemizedSplits } from '../domain/splits.js';
 import { canModifyExpense } from '../domain/permissions.js';
 import { StorageService } from '../storage/storageAdapter.js';
-import { uiState, getActiveTrip, getActiveMemberId } from './state.js';
+import { uiState, getActiveTrip, getActiveMemberId, getMemberName } from './state.js';
 import { showToast, escapeHtml } from './helpers.js';
 import { renderAll } from './views.js';
 
@@ -49,8 +49,31 @@ export function openExpenseModal(expenseId = null) {
   const dateEl = document.getElementById('expDate');
   if (dateEl) dateEl.value = existingExp ? existingExp.date : getLocalTodayStr();
 
+  const taxTipInput = document.getElementById('expTaxTipInput');
+  if (existingExp && existingExp.splitType === 'ITEMIZED' && Array.isArray(existingExp.items)) {
+    uiState.tempExpenseItems = existingExp.items.map(it => ({
+      id: it.id || StorageService.generateId('itm'),
+      name: it.name || '',
+      priceRupees: it.pricePaise !== undefined ? (it.pricePaise / 100).toString() : '',
+      sharedBy: Array.isArray(it.sharedBy) ? [...it.sharedBy] : trip.members.map(m => m.id)
+    }));
+    const taxVal = existingExp.taxTipPaise ? (existingExp.taxTipPaise / 100).toString() : '0';
+    if (taxTipInput) taxTipInput.value = taxVal;
+    uiState.tempTaxTipRupees = taxVal;
+  } else {
+    uiState.tempExpenseItems = [{
+      id: StorageService.generateId('itm'),
+      name: '',
+      priceRupees: '',
+      sharedBy: trip.members.map(m => m.id)
+    }];
+    if (taxTipInput) taxTipInput.value = '0';
+    uiState.tempTaxTipRupees = '0';
+  }
+
   uiState.currentSplitType = existingExp ? existingExp.splitType : 'EQUAL';
   updateSplitTypeTabsUI();
+  renderItemizedRows(trip);
   renderSplitMemberInputs(trip, existingExp);
   updateLiveSplitCheck();
 
@@ -62,6 +85,54 @@ export function updateSplitTypeTabsUI() {
   document.querySelectorAll('.split-tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.splitType === uiState.currentSplitType);
   });
+
+  const itemizedSection = document.getElementById('itemizedSplitSection');
+  const splitMembers = document.getElementById('splitMembersContainer') || document.getElementById('splitMembersList');
+  const btnSelectAll = document.getElementById('btnSelectAllMembers') || document.getElementById('btnSelectAllSplit');
+  const expAmount = document.getElementById('expAmount');
+
+  if (uiState.currentSplitType === 'ITEMIZED') {
+    if (itemizedSection) itemizedSection.style.display = 'block';
+    if (splitMembers) splitMembers.style.display = 'none';
+    if (btnSelectAll) btnSelectAll.style.display = 'none';
+    if (expAmount) {
+      expAmount.readOnly = true;
+      expAmount.title = 'Auto-calculated from itemized dishes + tax/tip';
+    }
+  } else {
+    if (itemizedSection) itemizedSection.style.display = 'none';
+    if (splitMembers) splitMembers.style.display = 'block';
+    if (btnSelectAll) btnSelectAll.style.display = '';
+    if (expAmount) {
+      expAmount.readOnly = false;
+      expAmount.removeAttribute('title');
+    }
+  }
+}
+
+export function renderItemizedRows(trip) {
+  const container = document.getElementById('itemizedRowsContainer');
+  if (!container || !trip) return;
+
+  const isOnlyOne = uiState.tempExpenseItems.length <= 1;
+
+  container.innerHTML = uiState.tempExpenseItems.map((item, idx) => {
+    return `
+      <div class="itemized-row" data-item-row="${idx}">
+        <div class="itemized-row-main">
+          <input type="text" class="form-input item-name-input" data-item-idx="${idx}" placeholder="Dish / Item name" value="${escapeHtml(item.name || '')}" />
+          <input type="number" class="form-input item-price-input" data-item-idx="${idx}" placeholder="₹ Price" step="0.01" min="0" value="${escapeHtml(String(item.priceRupees ?? ''))}" />
+          <button type="button" class="btn-remove-item icon-btn-xs" data-remove-item="${idx}" ${isOnlyOne ? 'disabled' : ''} aria-label="Remove item">✕</button>
+        </div>
+        <div class="item-sharers-pills">
+          ${trip.members.map(m => {
+            const isShared = (item.sharedBy || []).includes(m.id);
+            return `<button type="button" class="item-sharer-pill ${isShared ? 'active' : ''}" data-item-sharer="${idx}" data-mem-id="${escapeHtml(m.id)}">${isShared ? '✓ ' : ''}${escapeHtml(m.name)}</button>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 export function renderSplitMemberInputs(trip, existingExp = null, preservedCheckedIds = null) {
@@ -204,6 +275,51 @@ export function readSplitInputsFromDOM() {
 
 export function updateLiveSplitCheck() {
   const amountInp = document.getElementById('expAmount');
+  const checkBox = document.getElementById('splitLiveCheck');
+  const msgEl = document.getElementById('splitCheckStatus') || document.getElementById('splitCheckMessage');
+  const mathEl = document.getElementById('splitCheckMath');
+
+  if (uiState.currentSplitType === 'ITEMIZED') {
+    const trip = getActiveTrip();
+    const domainItems = (uiState.tempExpenseItems || []).map(it => ({
+      id: it.id,
+      name: it.name || '',
+      pricePaise: rupeesToPaise(it.priceRupees || 0),
+      sharedBy: it.sharedBy || []
+    }));
+    const taxTipInput = document.getElementById('expTaxTipInput');
+    const taxTipPaise = rupeesToPaise(taxTipInput?.value || 0);
+    const validMemberIds = trip ? trip.members.map(m => m.id) : [];
+    const res = calculateItemizedSplits(domainItems, taxTipPaise, validMemberIds);
+
+    if (amountInp) {
+      amountInp.value = res.totalPaise > 0 ? (res.totalPaise / 100).toFixed(2) : '';
+    }
+
+    if (checkBox) {
+      checkBox.classList.toggle('valid', res.isValid);
+      checkBox.classList.toggle('invalid', !res.isValid);
+    }
+    if (msgEl) msgEl.textContent = res.message;
+    if (mathEl) {
+      mathEl.textContent = `Subtotal ${formatPaise(res.subtotalPaise)} + Tax/Tip ${formatPaise(res.taxTipPaise)} = ${formatPaise(res.totalPaise)}`;
+    }
+
+    const previewEl = document.getElementById('itemizedMemberPreview');
+    if (previewEl && trip) {
+      if (res.splits && res.splits.length > 0) {
+        previewEl.innerHTML = res.splits.map(s => {
+          const memName = getMemberName(trip, s.memberId);
+          return `<span class="itemized-member-share"><strong>${escapeHtml(memName)}:</strong> ${formatPaise(s.amountPaise)}</span>`;
+        }).join('');
+      } else {
+        previewEl.innerHTML = '';
+      }
+    }
+
+    return res;
+  }
+
   const totalPaise = rupeesToPaise(amountInp ? amountInp.value : 0);
   const memberInputs = readSplitInputsFromDOM();
   const result = calculateSplits(totalPaise, uiState.currentSplitType, memberInputs);
@@ -216,10 +332,6 @@ export function updateLiveSplitCheck() {
       el.textContent = found ? formatPaise(found.amountPaise) : '—';
     });
   }
-
-  const checkBox = document.getElementById('splitLiveCheck');
-  const msgEl = document.getElementById('splitCheckMessage');
-  const mathEl = document.getElementById('splitCheckMath');
 
   if (checkBox) {
     checkBox.classList.toggle('valid', result.isValid);
@@ -247,7 +359,7 @@ export function handleSaveExpense(e) {
   const title = titleInp ? titleInp.value.trim() : '';
 
   const amountInp = document.getElementById('expAmount');
-  const totalPaise = rupeesToPaise(amountInp ? amountInp.value : 0);
+  let totalPaise = rupeesToPaise(amountInp ? amountInp.value : 0);
 
   const catInp = document.getElementById('expCategory');
   const category = catInp ? catInp.value : 'Food';
@@ -265,15 +377,33 @@ export function handleSaveExpense(e) {
     showToast('Please enter an expense title.');
     return;
   }
-  if (totalPaise <= 0) {
-    showToast('Please enter a valid amount greater than 0.');
-    return;
-  }
 
-  const splitCalc = updateLiveSplitCheck();
-  if (!splitCalc.isValid) {
-    showToast(splitCalc.message);
-    return;
+  let splitCalc;
+  let domainItems = null;
+  if (uiState.currentSplitType === 'ITEMIZED') {
+    domainItems = (uiState.tempExpenseItems || []).map(it => ({
+      id: it.id,
+      name: it.name || '',
+      pricePaise: rupeesToPaise(it.priceRupees || 0),
+      sharedBy: it.sharedBy || []
+    }));
+    const taxTipPaise = rupeesToPaise(document.getElementById('expTaxTipInput')?.value || 0);
+    splitCalc = calculateItemizedSplits(domainItems, taxTipPaise, trip.members.map(m => m.id));
+    if (!splitCalc.isValid) {
+      showToast(splitCalc.message);
+      return;
+    }
+    totalPaise = splitCalc.totalPaise;
+  } else {
+    if (totalPaise <= 0) {
+      showToast('Please enter a valid amount greater than 0.');
+      return;
+    }
+    splitCalc = updateLiveSplitCheck();
+    if (!splitCalc.isValid) {
+      showToast(splitCalc.message);
+      return;
+    }
   }
 
   const now = Date.now();
@@ -287,7 +417,7 @@ export function handleSaveExpense(e) {
         return;
       }
       const safeUpdatedAt = Math.max(now, (trip.expenses[idx].updatedAt || 0) + 1);
-      trip.expenses[idx] = {
+      const updatedExpense = {
         ...trip.expenses[idx],
         title,
         amountPaise: totalPaise,
@@ -299,12 +429,20 @@ export function handleSaveExpense(e) {
         revision: (trip.expenses[idx].revision || 1) + 1,
         updatedAt: safeUpdatedAt
       };
+      if (uiState.currentSplitType === 'ITEMIZED') {
+        updatedExpense.items = domainItems;
+        updatedExpense.taxTipPaise = splitCalc.taxTipPaise;
+      } else {
+        delete updatedExpense.items;
+        delete updatedExpense.taxTipPaise;
+      }
+      trip.expenses[idx] = updatedExpense;
       trip.updatedAt = safeUpdatedAt;
     }
     showToast('Expense updated!');
   } else {
     if (!Array.isArray(trip.expenses)) trip.expenses = [];
-    trip.expenses.push({
+    const newExpense = {
       id: StorageService.generateId('exp'),
       tripId: trip.id,
       title,
@@ -319,7 +457,12 @@ export function handleSaveExpense(e) {
       updatedAt: now,
       revision: 1,
       deleted: false
-    });
+    };
+    if (uiState.currentSplitType === 'ITEMIZED') {
+      newExpense.items = domainItems;
+      newExpense.taxTipPaise = splitCalc.taxTipPaise;
+    }
+    trip.expenses.push(newExpense);
     trip.updatedAt = now;
     showToast('Expense added!');
   }
@@ -328,3 +471,118 @@ export function handleSaveExpense(e) {
   if (modalEl) modalEl.classList.remove('open');
   renderAll();
 }
+
+function compressImageFile(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl !== 'string') {
+        return resolve(null);
+      }
+      const rawBase64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          const maxDim = 1200;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            return resolve(rawBase64);
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          const compressedBase64 = compressed.includes(',') ? compressed.split(',')[1] : compressed;
+          resolve(compressedBase64 || rawBase64);
+        } catch {
+          resolve(rawBase64);
+        }
+      };
+      img.onerror = () => {
+        resolve(rawBase64);
+      };
+      img.src = dataUrl;
+    };
+    reader.onerror = () => {
+      resolve(null);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function handleReceiptFileSelected(file, trip) {
+  if (!file || !trip) return;
+
+  const btnScan = document.getElementById('btnScanReceipt');
+  if (btnScan) {
+    btnScan.textContent = '⏳ Scanning...';
+    btnScan.disabled = true;
+  }
+
+  try {
+    const imageBase64 = await compressImageFile(file);
+    if (!imageBase64) {
+      showToast('Could not scan receipt — please enter items manually.');
+      return;
+    }
+
+    const res = await fetch('/api/receipt/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64, mimeType: 'image/jpeg' })
+    });
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    if (res.ok && data?.ok && Array.isArray(data.receipt?.items) && data.receipt.items.length > 0) {
+      const expTitle = document.getElementById('expTitle');
+      if (expTitle && !expTitle.value.trim() && data.receipt.merchant) {
+        expTitle.value = data.receipt.merchant;
+      }
+
+      uiState.tempExpenseItems = data.receipt.items.map(it => ({
+        id: StorageService.generateId('itm'),
+        name: String(it.name || '').trim(),
+        priceRupees: Number(it.priceRupees).toString(),
+        sharedBy: trip.members.map(m => m.id)
+      }));
+
+      const taxTipInput = document.getElementById('expTaxTipInput');
+      if (taxTipInput) {
+        taxTipInput.value = Number(data.receipt.taxTipRupees || 0).toFixed(2);
+      }
+      uiState.tempTaxTipRupees = Number(data.receipt.taxTipRupees || 0).toFixed(2);
+
+      renderItemizedRows(trip);
+      updateLiveSplitCheck();
+      showToast('Receipt scanned! Tap member names to assign who ate what.');
+    } else {
+      showToast(data?.error || 'Could not scan receipt — please enter items manually.');
+    }
+  } catch {
+    showToast('Could not scan receipt — please enter items manually.');
+  } finally {
+    if (btnScan) {
+      btnScan.textContent = '📷 Scan Receipt';
+      btnScan.disabled = false;
+    }
+  }
+}
+

@@ -25,8 +25,10 @@ import {
   openExpenseModal,
   updateSplitTypeTabsUI,
   renderSplitMemberInputs,
+  renderItemizedRows,
   updateLiveSplitCheck,
-  handleSaveExpense
+  handleSaveExpense,
+  handleReceiptFileSelected
 } from './ui/expenseModal.js';
 import {
   openTripModal,
@@ -165,18 +167,108 @@ export function bindEvents() {
       updateSplitTypeTabsUI();
       const trip = getActiveTrip();
       if (trip) {
-        const prevChecked = new Set(
-          Array.from(document.querySelectorAll('.split-member-check:checked')).map(cb => cb.value)
-        );
-        const expId = document.getElementById('expId')?.value;
-        const existingExp = expId ? (trip.expenses || []).find(e => e.id === expId && !e.deleted) : null;
-        renderSplitMemberInputs(trip, existingExp, prevChecked.size > 0 ? prevChecked : null);
-        updateLiveSplitCheck();
+        if (uiState.currentSplitType === 'ITEMIZED') {
+          renderItemizedRows(trip);
+          updateLiveSplitCheck();
+        } else {
+          const prevChecked = new Set(
+            Array.from(document.querySelectorAll('.split-member-check:checked')).map(cb => cb.value)
+          );
+          const expId = document.getElementById('expId')?.value;
+          const existingExp = expId ? (trip.expenses || []).find(e => e.id === expId && !e.deleted) : null;
+          renderSplitMemberInputs(trip, existingExp, prevChecked.size > 0 ? prevChecked : null);
+          updateLiveSplitCheck();
+        }
       }
     });
   });
 
   document.getElementById('expAmount')?.addEventListener('input', updateLiveSplitCheck);
+
+  // Itemized bill editor events
+  document.getElementById('btnAddItemRow')?.addEventListener('click', () => {
+    const trip = getActiveTrip();
+    if (!trip) return;
+    uiState.tempExpenseItems.push({
+      id: StorageService.generateId('itm'),
+      name: '',
+      priceRupees: '',
+      sharedBy: trip.members.map(m => m.id)
+    });
+    renderItemizedRows(trip);
+    updateLiveSplitCheck();
+  });
+
+  document.getElementById('btnScanReceipt')?.addEventListener('click', () => {
+    document.getElementById('receiptFileInput')?.click();
+  });
+
+  document.getElementById('receiptFileInput')?.addEventListener('change', async (e) => {
+    await handleReceiptFileSelected(e.target.files?.[0], getActiveTrip());
+    e.target.value = '';
+  });
+
+  const itemizedRowsContainer = document.getElementById('itemizedRowsContainer');
+  itemizedRowsContainer?.addEventListener('input', (e) => {
+    const nameInp = e.target.closest('.item-name-input');
+    if (nameInp) {
+      const idx = parseInt(nameInp.dataset.itemIdx, 10);
+      if (uiState.tempExpenseItems[idx]) {
+        uiState.tempExpenseItems[idx].name = nameInp.value;
+      }
+      return;
+    }
+    const priceInp = e.target.closest('.item-price-input');
+    if (priceInp) {
+      const idx = parseInt(priceInp.dataset.itemIdx, 10);
+      if (uiState.tempExpenseItems[idx]) {
+        uiState.tempExpenseItems[idx].priceRupees = priceInp.value;
+      }
+      updateLiveSplitCheck();
+      return;
+    }
+  });
+
+  itemizedRowsContainer?.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('[data-remove-item]');
+    if (removeBtn) {
+      const idx = parseInt(removeBtn.dataset.removeItem, 10);
+      if (uiState.tempExpenseItems.length > 1) {
+        uiState.tempExpenseItems.splice(idx, 1);
+        const trip = getActiveTrip();
+        if (trip) renderItemizedRows(trip);
+        updateLiveSplitCheck();
+      }
+      return;
+    }
+    const sharerBtn = e.target.closest('[data-item-sharer]');
+    if (sharerBtn) {
+      const idx = parseInt(sharerBtn.dataset.itemSharer, 10);
+      const memId = sharerBtn.dataset.memId;
+      const item = uiState.tempExpenseItems[idx];
+      if (item && memId) {
+        const sharedSet = new Set(item.sharedBy || []);
+        if (sharedSet.has(memId)) {
+          sharedSet.delete(memId);
+        } else {
+          sharedSet.add(memId);
+        }
+        item.sharedBy = Array.from(sharedSet);
+        const isShared = sharedSet.has(memId);
+        sharerBtn.classList.toggle('active', isShared);
+        const trip = getActiveTrip();
+        const memName = trip ? getMemberName(trip, memId) : memId;
+        sharerBtn.textContent = `${isShared ? '✓ ' : ''}${memName}`;
+        updateLiveSplitCheck();
+      }
+      return;
+    }
+  });
+
+  document.getElementById('expTaxTipInput')?.addEventListener('input', (e) => {
+    uiState.tempTaxTipRupees = e.target.value;
+    updateLiveSplitCheck();
+  });
 
   document.getElementById('btnSelectAllMembers')?.addEventListener('click', () => {
     document.querySelectorAll('.split-member-check').forEach(cb => { cb.checked = true; });

@@ -159,4 +159,101 @@ test.describe('TripSplit E2E Test Suite', () => {
     await expect(page.locator('#cloudSyncDot')).toHaveClass(/synced/);
   });
 
+
+  test('Test 6: Itemized Bill Split (Who Ate What) & Tax Rollup', async ({ page }) => {
+
+    // Open Add Expense modal
+    await page.click('#btnOpenAddExpense');
+    await expect(page.locator('#expenseModal')).toHaveClass(/open/);
+
+    // Enter title "Beach Shack Dinner"
+    await page.fill('#expTitle', 'Beach Shack Dinner');
+
+    // Click [data-split-type="ITEMIZED"]
+    await page.click('[data-split-type="ITEMIZED"]');
+
+    // Fill first item name "Prawns" and price "400"
+    await page.locator('.item-name-input[data-item-idx="0"]').fill('Prawns');
+    await page.locator('.item-price-input[data-item-idx="0"]').fill('400');
+
+    // Click #btnAddItemRow
+    await page.click('#btnAddItemRow');
+
+    // Fill second item name "Lime Soda" and price "100"
+    await page.locator('.item-name-input[data-item-idx="1"]').fill('Lime Soda');
+    await page.locator('.item-price-input[data-item-idx="1"]').fill('100');
+
+    // Uncheck one member pill on the second item
+    await page.locator('[data-item-sharer="1"]').first().click();
+
+    // Fill #expTaxTipInput with "50"
+    await page.fill('#expTaxTipInput', '50');
+
+    // Verify #expAmount auto-updates to "550.00" and #splitLiveCheck has class valid
+    await expect(page.locator('#expAmount')).toHaveValue('550.00');
+    await expect(page.locator('#splitLiveCheck')).toHaveClass(/valid/);
+
+    // Submit the form
+    await page.click('button[type="submit"][form="expenseForm"]');
+    await expect(page.locator('#expenseModal')).not.toHaveClass(/open/);
+
+    // Verify "Beach Shack Dinner" and "₹550" appear in #expensesListContainer
+    const expensesContainer = page.locator('#expensesListContainer');
+    await expect(expensesContainer).toContainText('Beach Shack Dinner');
+    await expect(expensesContainer).toContainText('₹550');
+  });
+
+  test('Test 7: Receipt Scan Mock Populates Itemized Rows', async ({ page }) => {
+    await page.route('**/api/receipt/scan', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          receipt: {
+            merchant: 'Cafe Mondegar',
+            items: [
+              { name: 'Burger', priceRupees: 350 },
+              { name: 'Fries', priceRupees: 150 }
+            ],
+            taxTipRupees: 30
+          }
+        })
+      });
+    });
+
+    // Open Add Expense
+    await page.click('#btnOpenAddExpense');
+    await expect(page.locator('#expenseModal')).toHaveClass(/open/);
+
+    // Switch to ITEMIZED
+    await page.click('[data-split-type="ITEMIZED"]');
+
+    // Upload a tiny dummy PNG buffer via page.setInputFiles('#receiptFileInput', ...)
+    const tinyPngBuffer = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64'
+    );
+    await page.setInputFiles('#receiptFileInput', {
+      name: 'receipt.png',
+      mimeType: 'image/png',
+      buffer: tinyPngBuffer
+    });
+
+    // Verify #expTitle becomes 'Cafe Mondegar'
+    await expect(page.locator('#expTitle')).toHaveValue('Cafe Mondegar');
+
+    // 2 item rows render
+    await expect(page.locator('.itemized-row')).toHaveCount(2);
+    await expect(page.locator('.item-name-input[data-item-idx="0"]')).toHaveValue('Burger');
+    await expect(page.locator('.item-price-input[data-item-idx="0"]')).toHaveValue('350');
+    await expect(page.locator('.item-name-input[data-item-idx="1"]')).toHaveValue('Fries');
+    await expect(page.locator('.item-price-input[data-item-idx="1"]')).toHaveValue('150');
+
+    // #expTaxTipInput is '30.00'
+    await expect(page.locator('#expTaxTipInput')).toHaveValue('30.00');
+
+    // #expAmount becomes '530.00'
+    await expect(page.locator('#expAmount')).toHaveValue('530.00');
+  });
 });

@@ -340,16 +340,41 @@ export function bindEvents() {
   });
 
   // Merge Pasted Sync Code
-  document.getElementById('btnMergeCode')?.addEventListener('click', () => {
+  document.getElementById('btnMergeCode')?.addEventListener('click', async () => {
     const raw = document.getElementById('mergeCodeInput')?.value.trim();
     if (!raw) {
       showToast('Please paste a sync code or link first.');
       return;
     }
+    const tripMatch = raw.match(/[?#&]trip=([A-Za-z0-9_-]+)/);
+    if (tripMatch && tripMatch[1]) {
+      const tripId = tripMatch[1];
+      try {
+        const res = await StorageService.pullTripFromCloud(uiState.appState, tripId);
+        if (res && res.ok === false) {
+          showToast('Could not load trip from cloud.');
+          return;
+        }
+        uiState.appState.activeTripId = tripId;
+        StorageService.saveState(uiState.appState);
+        const mergeInput = document.getElementById('mergeCodeInput');
+        if (mergeInput) mergeInput.value = '';
+        renderAll();
+        showToast('Trip loaded from cloud!');
+        promptIdentitySelection(tripId);
+        return;
+      } catch (err) {
+        showToast('Could not load trip from cloud.');
+        return;
+      }
+    }
     try {
       const payload = StorageService.decodePayloadFromBase64(raw);
       const stats = StorageService.mergeTripPayload(uiState.appState, payload);
-      document.getElementById('mergeCodeInput').value = '';
+      uiState.appState.activeTripId = stats.tripId;
+      StorageService.saveState(uiState.appState);
+      const mergeInput = document.getElementById('mergeCodeInput');
+      if (mergeInput) mergeInput.value = '';
       renderAll();
       showToast(`Merged "${stats.tripName}" (${stats.addedExpenses} new, ${stats.updatedExpenses} updated)!`);
       if (stats.isNewTrip) {
@@ -502,7 +527,7 @@ export function bindEvents() {
   });
 }
 
-export function init() {
+export async function init() {
   initAppState();
   document.querySelectorAll('.currency-symbol').forEach(el => {
     el.textContent = CONFIG.CURRENCY.SYMBOL;
@@ -511,8 +536,9 @@ export function init() {
   printStyle.textContent = '@media print { body { transition: none !important; background-color: #ffffff !important; } }';
   document.head.appendChild(printStyle);
   bindEvents();
+  window.addEventListener('hashchange', checkUrlForSyncPayload);
   renderAll({ onOpenCreateTrip: () => openTripModal('create') });
-  checkUrlForSyncPayload();
+  await checkUrlForSyncPayload();
   StorageService.syncTripWithCloud(uiState.appState);
 }
 

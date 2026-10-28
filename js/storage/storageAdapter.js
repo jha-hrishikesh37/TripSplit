@@ -153,12 +153,16 @@ export async function syncTripWithCloud(state, tripId = state?.activeTripId) {
   }
 
   if (data && data.ok && data.trip) {
+    const previousActiveTripId = state.activeTripId;
     const stats = mergeTripInMemory(state, {
       type: 'TRIPSPLIT_SYNC_V1',
       app: CONFIG.APP_NAME,
       version: CONFIG.SCHEMA_VERSION,
       trip: data.trip
     });
+    if (previousActiveTripId && previousActiveTripId !== tripId) {
+      state.activeTripId = previousActiveTripId;
+    }
     saveState(state, { skipCloud: true });
     notifySyncStatus('synced', { tripId, stats });
     const finalTrip = getTripFromState(state, tripId) || state?.trips?.[tripId];
@@ -199,6 +203,7 @@ export async function pullTripFromCloud(state, tripId) {
         version: CONFIG.SCHEMA_VERSION,
         trip: data.trip
       });
+      state.activeTripId = tripId;
       saveState(state, { skipCloud: true });
       notifySyncStatus('synced', { tripId, stats });
       const finalTrip = getTripFromState(state, tripId) || state?.trips?.[tripId];

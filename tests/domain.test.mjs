@@ -1321,3 +1321,68 @@ test('storage: scheduleCloudSync and saveState debouncing and skipCloud option',
     StorageService.syncTripWithCloud = origSync;
   }
 });
+
+test('storage: pullTripFromCloud switches activeTripId to pulled trip and background sync preserves user active trip', async () => {
+  const origFetch = globalThis.fetch;
+  const origLocalStorage = globalThis.localStorage;
+
+  try {
+    globalThis.localStorage = {
+      getItem: () => null,
+      setItem: () => {}
+    };
+
+    const state = {
+      activeTripId: 'default_trip',
+      trips: [
+        { id: 'default_trip', name: 'Default Trip', members: [{ id: 'm0', name: 'Owner' }] },
+        { id: 'existing_trip', name: 'Existing Trip', members: [{ id: 'm1', name: 'Alice' }] }
+      ]
+    };
+
+    // 1. pullTripFromCloud for an invited trip switches activeTripId
+    const invitedTripId = 'invited_trip_123';
+    globalThis.fetch = async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        ok: true,
+        trip: {
+          id: invitedTripId,
+          name: 'Invited Trip',
+          members: [{ id: 'm2', name: 'Bob' }],
+          expenses: [],
+          settlements: []
+        }
+      })
+    });
+
+    const pullRes = await StorageService.pullTripFromCloud(state, invitedTripId);
+    assert.equal(pullRes.ok, true);
+    assert.equal(state.activeTripId, invitedTripId);
+
+    // 2. background sync of another trip does NOT overwrite state.activeTripId
+    globalThis.fetch = async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        ok: true,
+        trip: {
+          id: 'existing_trip',
+          name: 'Existing Trip Synced',
+          members: [{ id: 'm1', name: 'Alice' }],
+          expenses: [],
+          settlements: []
+        }
+      })
+    });
+
+    const syncRes = await StorageService.syncTripWithCloud(state, 'existing_trip');
+    assert.equal(syncRes.ok, true);
+    // User was on invitedTripId, so background sync of existing_trip must preserve invitedTripId!
+    assert.equal(state.activeTripId, invitedTripId);
+  } finally {
+    globalThis.fetch = origFetch;
+    globalThis.localStorage = origLocalStorage;
+  }
+});

@@ -69,6 +69,8 @@ test.describe('TripSplit E2E Test Suite', () => {
     // Verify the settled status resets and shows the stale warning
     await expect(firstCard).not.toHaveClass(/is-settled/);
     await expect(firstCard).toContainText('⚠️ Amount changed since marked paid — please re-verify');
+    await expect(firstCard).toContainText('Already paid:');
+    await expect(firstCard).toContainText('Remaining to pay:');
   });
 
   test('Test 3: URL #sync= Invite Link Import & Identity Picker', async ({ page }) => {
@@ -255,5 +257,22 @@ test.describe('TripSplit E2E Test Suite', () => {
 
     // #expAmount becomes '530.00'
     await expect(page.locator('#expAmount')).toHaveValue('530.00');
+  });
+
+  test('Test 8: PWA Manifest & Service Worker Asset Availability', async ({ page }) => {
+    // Verify link[rel="manifest"] is present in index.html
+    const manifestLink = page.locator('link[rel="manifest"]');
+    await expect(manifestLink).toHaveAttribute('href', './manifest.json');
+
+    // Fetch /manifest.json and verify status 200
+    const manifestRes = await page.request.get('/manifest.json');
+    expect(manifestRes.status()).toBe(200);
+    const manifestJson = await manifestRes.json();
+    expect(manifestJson.name).toBe('TripSplit — Smart Group Expense Manager');
+    expect(manifestJson.short_name).toBe('TripSplit');
+
+    // Fetch /sw.js and verify status 200
+    const swRes = await page.request.get('/sw.js');
+    expect(swRes.status()).toBe(200);
   });
 });

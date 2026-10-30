@@ -28,7 +28,11 @@ export function buildSettlementSummaryText(trip) {
       const fromName = getMemberName(trip, tx.fromId);
       const toName = getMemberName(trip, tx.toId);
       const status = tx.settled ? '✅ PAID' : '⏳ PENDING';
-      lines.push(`• *${fromName}* ➔ *${toName}*: *${formatPaise(tx.amountPaise)}* [${status}]`);
+      let line = `• *${fromName}* ➔ *${toName}*: *${formatPaise(tx.amountPaise)}* [${status}]`;
+      if (tx.isStaleAmount && tx.remainingToPayPaise > 0) {
+        line += ` [Already paid ${formatPaise(tx.previouslyPaidPaise)}, Remaining: ${formatPaise(tx.remainingToPayPaise)}]`;
+      }
+      lines.push(line);
     });
   }
 

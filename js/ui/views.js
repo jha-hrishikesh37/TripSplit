@@ -266,7 +266,7 @@ export function renderSettlementTab(trip, settlementData) {
                 <strong>${escapeHtml(toName)}</strong>
               </div>
               <div style="font-size:0.76rem; color:var(--text-muted); margin-top:2px;">
-                ${tx.settled ? '✅ Marked as Settled' : (tx.isStaleAmount ? '⚠️ Amount changed since marked paid — please re-verify' : '⏳ Pending Payment')}
+                ${tx.settled ? '✅ Marked as Settled' : (tx.isStaleAmount ? (tx.remainingToPayPaise > 0 ? `⚠️ Amount changed since marked paid — please re-verify (Already paid: ${formatPaise(tx.previouslyPaidPaise)} • Remaining to pay: ${formatPaise(tx.remainingToPayPaise)})` : (tx.overpaidPaise > 0 ? `⚠️ Amount changed since marked paid — please re-verify (Already paid: ${formatPaise(tx.previouslyPaidPaise)} • Overpaid by: ${formatPaise(tx.overpaidPaise)})` : '⚠️ Amount changed since marked paid — please re-verify')) : '⏳ Pending Payment')}
               </div>
             </div>
             <div style="display:flex; align-items:center; gap:10px;">

@@ -68,6 +68,10 @@ export function computeTripSettlement(trip) {
       const isSettled = Boolean(savedRecord && savedRecord.settled && amountMatches);
       const isStaleAmount = Boolean(savedRecord && savedRecord.settled && !amountMatches);
 
+      const previouslyPaidPaise = isSettled ? transferPaise : (isStaleAmount ? Math.round(Number(savedRecord.amountPaise || 0)) : 0);
+      const remainingToPayPaise = isSettled ? 0 : Math.max(0, transferPaise - previouslyPaidPaise);
+      const overpaidPaise = (!isSettled && previouslyPaidPaise > transferPaise) ? (previouslyPaidPaise - transferPaise) : 0;
+
       transactions.push({
         id: settlementKey,
         fromId: debtor.memberId,
@@ -75,6 +79,9 @@ export function computeTripSettlement(trip) {
         amountPaise: transferPaise,
         settled: isSettled,
         isStaleAmount,
+        previouslyPaidPaise,
+        remainingToPayPaise,
+        overpaidPaise,
         settledAt: savedRecord?.updatedAt || null
       });
     }
@@ -92,9 +99,10 @@ export function computeTripSettlement(trip) {
   });
 
   transactions.forEach(tx => {
-    if (tx.settled) {
-      if (statsByMember[tx.fromId]) statsByMember[tx.fromId].remainingNetPaise += tx.amountPaise;
-      if (statsByMember[tx.toId]) statsByMember[tx.toId].remainingNetPaise -= tx.amountPaise;
+    const paidCredit = Math.min(tx.amountPaise, tx.previouslyPaidPaise || 0);
+    if (paidCredit > 0) {
+      if (statsByMember[tx.fromId]) statsByMember[tx.fromId].remainingNetPaise += paidCredit;
+      if (statsByMember[tx.toId]) statsByMember[tx.toId].remainingNetPaise -= paidCredit;
     }
   });
 

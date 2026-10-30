@@ -633,6 +633,12 @@ export async function init() {
   renderAll({ onOpenCreateTrip: () => openTripModal('create') });
   await checkUrlForSyncPayload();
   StorageService.syncTripWithCloud(uiState.appState);
+
+  if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
 }
 
 window.addEventListener('DOMContentLoaded', init);

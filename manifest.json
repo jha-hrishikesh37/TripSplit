@@ -1,0 +1,18 @@
+{
+  "name": "TripSplit — Smart Group Expense Manager",
+  "short_name": "TripSplit",
+  "description": "Offline-first group expense splitter with itemized bills and cloud sync.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

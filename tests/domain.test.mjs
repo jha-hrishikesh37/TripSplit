@@ -336,6 +336,14 @@ test('settlement: settlement record matching vs stale amount', () => {
   assert.equal(tx.amountPaise, 80000);
   assert.equal(tx.settled, false);
   assert.equal(tx.isStaleAmount, true);
+  assert.equal(tx.previouslyPaidPaise, 50000);
+  assert.equal(tx.remainingToPayPaise, 30000);
+  assert.equal(tx.overpaidPaise, 0);
+
+  const m1Stats = settlement.memberStats.find(m => m.memberId === 'm1');
+  const m2Stats = settlement.memberStats.find(m => m.memberId === 'm2');
+  assert.equal(m1Stats.remainingNetPaise, 30000);
+  assert.equal(m2Stats.remainingNetPaise, -30000);
 });
 
 test('permissions: canModifyExpense permissions rules', () => {

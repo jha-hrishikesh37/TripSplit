@@ -20,10 +20,12 @@ export function renderAll({ onOpenCreateTrip } = {}) {
 
   const editBtn = document.getElementById('btnEditTrip');
   const deleteHeaderBtn = document.getElementById('btnDeleteTripHeader');
+  const tripMenuWrap = document.getElementById('tripMenuWrap');
   const renameIdentityBtn = document.getElementById('btnRenameMyIdentity');
   const fabContainer = document.querySelector('.fab-container');
 
   if (!trip) {
+    if (tripMenuWrap) tripMenuWrap.style.display = 'none';
     if (editBtn) editBtn.style.display = 'none';
     if (deleteHeaderBtn) deleteHeaderBtn.style.display = 'none';
     if (renameIdentityBtn) renameIdentityBtn.style.display = 'none';
@@ -67,8 +69,9 @@ export function renderAll({ onOpenCreateTrip } = {}) {
     return;
   }
 
-  if (editBtn) editBtn.style.display = 'inline-flex';
-  if (deleteHeaderBtn) deleteHeaderBtn.style.display = 'inline-flex';
+  if (tripMenuWrap) tripMenuWrap.style.display = '';
+  if (editBtn) editBtn.style.display = 'flex';
+  if (deleteHeaderBtn) deleteHeaderBtn.style.display = 'flex';
   if (renameIdentityBtn) renameIdentityBtn.style.display = 'inline-flex';
   if (fabContainer) fabContainer.style.display = 'flex';
 

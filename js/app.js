@@ -292,7 +292,40 @@ export function bindEvents() {
 
   // Trip Create / Edit Buttons
   document.getElementById('btnNewTrip')?.addEventListener('click', () => openTripModal('create'));
-  document.getElementById('btnEditTrip')?.addEventListener('click', () => openTripModal('edit'));
+  // Group Options Overflow Menu
+  const btnTripMenu = document.getElementById('btnTripMenu');
+  const tripMenuDropdown = document.getElementById('tripMenuDropdown');
+  const tripMenuWrap = document.getElementById('tripMenuWrap');
+
+  const closeTripMenu = () => {
+    if (tripMenuDropdown) {
+      tripMenuDropdown.classList.remove('open');
+      btnTripMenu?.setAttribute('aria-expanded', 'false');
+    }
+  };
+
+  btnTripMenu?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = tripMenuDropdown?.classList.toggle('open');
+    btnTripMenu.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (tripMenuWrap && !tripMenuWrap.contains(e.target)) {
+      closeTripMenu();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeTripMenu();
+    }
+  });
+
+  document.getElementById('btnEditTrip')?.addEventListener('click', () => {
+    closeTripMenu();
+    openTripModal('edit');
+  });
 
   document.getElementById('btnAddMemberRow')?.addEventListener('click', () => {
     const inp = document.getElementById('newMemberNameInput');
@@ -317,7 +350,10 @@ export function bindEvents() {
 
   document.getElementById('tripForm')?.addEventListener('submit', handleSaveTrip);
 
-  document.getElementById('btnDeleteTripHeader')?.addEventListener('click', confirmDeleteCurrentGroup);
+  document.getElementById('btnDeleteTripHeader')?.addEventListener('click', () => {
+    closeTripMenu();
+    confirmDeleteCurrentGroup();
+  });
   document.getElementById('btnDeleteTrip')?.addEventListener('click', confirmDeleteCurrentGroup);
 
   document.getElementById('renameMemberForm')?.addEventListener('submit', handleSaveRenameMember);

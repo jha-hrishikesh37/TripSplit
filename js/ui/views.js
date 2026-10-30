@@ -135,7 +135,7 @@ export function renderHeroSummary(trip, activeMemberId, settlementData) {
   if (!heroSummaryEl) return;
 
   heroSummaryEl.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
       <div>
         <h1 style="font-size:1.15rem; font-weight:800;">${escapeHtml(trip.name)}</h1>
         <span style="font-size:0.78rem; color:var(--text-muted);">${trip.members.length} members · ${(trip.expenses || []).filter(e => !e.deleted).length} expenses</span>

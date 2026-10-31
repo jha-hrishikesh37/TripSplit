@@ -10,7 +10,7 @@ export default defineConfig({
   maxFailures: 1,
   reporter: 'line',
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: 'http://127.0.0.1:4173',
     trace: 'off',
     screenshot: 'off',
     video: 'off'
@@ -22,8 +22,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx serve . -l 4173',
-    port: 4173,
+    command: 'node tests/test-server.mjs',
+    url: 'http://127.0.0.1:4173',
     reuseExistingServer: true,
     timeout: 10000,
   },

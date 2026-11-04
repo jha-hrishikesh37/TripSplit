@@ -448,8 +448,8 @@ export function bindEvents() {
     const code = document.getElementById('syncCodeOutput')?.value || '';
     const inviteLink = buildCloudInviteUrl(trip.id);
     const message = [
-      `🎒 *${trip.name} — TripSplit Sync*`,
-      `Open our offline trip bill-splitter or paste the sync code below to add your expenses and merge:`,
+      `Join our group tab on Tabsolute (Scan. Split. Settle.): `,
+
       ``,
       inviteLink,
       ``,
@@ -590,7 +590,7 @@ export function bindEvents() {
 
   document.getElementById('btnBackupAll')?.addEventListener('click', () => {
     const json = StorageService.exportFullBackup(uiState.appState);
-    downloadFile(`tripsplit_full_backup_${getLocalTodayStr()}.json`, json, 'application/json');
+    downloadFile(`tabsolute_full_backup_${getLocalTodayStr()}.json`, json, 'application/json');
     showToast('Full backup downloaded!');
   });
 

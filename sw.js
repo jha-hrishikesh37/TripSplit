@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tripsplit-v2.0-static';
+const CACHE_NAME = 'tabsolute-v2.1-static';
 
 const STATIC_ASSETS = [
   './',
@@ -6,6 +6,7 @@ const STATIC_ASSETS = [
   './css/styles.css',
   './manifest.json',
   './icons/icon.svg',
+  './icons/extendedLogo.jpg',
   './js/app.js',
   './js/config.js',
   './js/domain/money.js',

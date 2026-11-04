@@ -36,6 +36,7 @@ export function buildSettlementSummaryText(trip) {
     });
   }
 
+  lines.push('', 'Tabsolute (Scan. Split. Settle.)');
   return lines.join('\n');
 }
 
@@ -78,7 +79,7 @@ export function exportTripToCSV(trip) {
     r.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')
   ).join('\n');
 
-  downloadFile(`${slugify(trip.name)}_report.csv`, csvContent, 'text/csv;charset=utf-8;');
+  downloadFile(`tabsolute_${slugify(trip.name)}_report.csv`, csvContent, 'text/csv;charset=utf-8;');
   showToast('CSV report downloaded!');
 }
 

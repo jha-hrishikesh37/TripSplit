@@ -268,8 +268,8 @@ test.describe('TripSplit E2E Test Suite', () => {
     const manifestRes = await page.request.get('/manifest.json');
     expect(manifestRes.status()).toBe(200);
     const manifestJson = await manifestRes.json();
-    expect(manifestJson.name).toBe('TripSplit — Smart Group Expense Manager');
-    expect(manifestJson.short_name).toBe('TripSplit');
+    expect(manifestJson.name).toBe('tabsolute — Scan. Split. Settle.');
+    expect(manifestJson.short_name).toBe('tabsolute');
 
     // Fetch /sw.js and verify status 200
     const swRes = await page.request.get('/sw.js');

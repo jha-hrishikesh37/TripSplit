@@ -135,7 +135,8 @@
       gap: 8px;
     }
 
-    .brand {
+    .brand,
+    .brand-area {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -145,13 +146,41 @@
       color: var(--primary);
     }
 
-    .brand-icon {
-      width: 32px;
-      height: 32px;
+    .brand-icon,
+    .app-logo {
+      width: 36px;
+      height: 36px;
       border-radius: var(--radius-sm);
       display: block;
       flex-shrink: 0;
       object-fit: cover;
+    }
+
+    .brand-text-stack {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin: 0;
+      padding: 0;
+    }
+
+    .brand-name {
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      font-size: 1.25rem;
+      color: var(--text-main);
+    }
+
+    .brand-tagline {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #F25C3B;
+      letter-spacing: 0.04em;
+      text-transform: none;
+      display: block;
+      margin-top: 2px;
+      line-height: 1.1;
     }
 
     .header-actions {
@@ -1302,7 +1331,8 @@
         box-shadow: none !important;
       }
 
-      .app-header .brand {
+      .app-header .brand,
+      .app-header .brand .brand-name {
         color: #0f172a !important;
       }
 

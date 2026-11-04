@@ -1,12 +1,12 @@
 {
-  "name": "TripSplit — Smart Group Expense Manager",
-  "short_name": "TripSplit",
-  "description": "Offline-first group expense splitter with itemized bills and cloud sync.",
+  "name": "tabsolute — Scan. Split. Settle.",
+  "short_name": "tabsolute",
+  "description": "Scan receipts, tap what you ate, and split group expenses instantly. No login or app downloads.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#4f46e5",
+  "background_color": "#FAF6F0",
+  "theme_color": "#F25C3B",
   "icons": [
     {
       "src": "./icons/icon.svg",

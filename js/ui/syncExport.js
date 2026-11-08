@@ -121,6 +121,12 @@ export function promptIdentitySelection(tripId) {
   if (modalEl) modalEl.classList.add('open');
 }
 
+export function buildCleanAppInviteWhatsAppUrl() {
+  const cleanAppUrl = window.location.origin + window.location.pathname;
+  const text = `Hey! Check out our bill-splitting app to split trip & dinner expenses easily (no login or download needed): ${cleanAppUrl}`;
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
 export function buildCloudInviteUrl(tripId) {
   const baseUrl = window.location.origin + window.location.pathname;
   return `${baseUrl}#trip=${encodeURIComponent(tripId)}`;

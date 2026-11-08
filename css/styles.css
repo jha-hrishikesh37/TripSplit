@@ -608,6 +608,26 @@
       background: var(--primary-soft);
     }
 
+    .btn-icon-subtle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1px solid var(--border-color, rgba(148, 163, 184, 0.25));
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .btn-icon-subtle:hover {
+      background: rgba(16, 185, 129, 0.18);
+      transform: translateY(-1px);
+    }
+
     .member-avatar-circle {
       width: 26px;
       height: 26px;

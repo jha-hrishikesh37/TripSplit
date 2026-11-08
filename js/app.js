@@ -43,7 +43,8 @@ import {
   exportTripToCSV,
   promptIdentitySelection,
   checkUrlForSyncPayload,
-  buildCloudInviteUrl
+  buildCloudInviteUrl,
+  buildCleanAppInviteWhatsAppUrl
 } from './ui/syncExport.js';
 
 export function bindEvents() {
@@ -441,22 +442,12 @@ export function bindEvents() {
     copyTextToClipboard(code, 'Sync code copied! Paste it in WhatsApp.');
   });
 
+  document.getElementById('btnQuickInviteApp')?.addEventListener('click', () => {
+    window.open(buildCleanAppInviteWhatsAppUrl(), '_blank', 'noopener,noreferrer');
+  });
+
   document.getElementById('btnWhatsAppSyncLink')?.addEventListener('click', () => {
-    const trip = getActiveTrip();
-    if (!trip) return;
-    StorageService.syncTripWithCloud(uiState.appState, trip.id);
-    const code = document.getElementById('syncCodeOutput')?.value || '';
-    const inviteLink = buildCloudInviteUrl(trip.id);
-    const message = [
-      `🎒 *${trip.name} — TripSplit Sync*`,
-      `Open our offline trip bill-splitter or paste the sync code below to add your expenses and merge:`,
-      ``,
-      inviteLink,
-      ``,
-      `Sync Code:`,
-      code
-    ].join('\n');
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    window.open(buildCleanAppInviteWhatsAppUrl(), '_blank', 'noopener,noreferrer');
   });
 
   document.getElementById('btnDownloadTripSyncFile')?.addEventListener('click', () => {

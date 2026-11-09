@@ -10,7 +10,8 @@ export function calculateSplits(totalPaise, splitType, memberInputs, itemizedPay
     return calculateItemizedSplits(
       itemizedPayload.items,
       itemizedPayload.taxTipPaise,
-      itemizedPayload.validMemberIds
+      itemizedPayload.validMemberIds,
+      itemizedPayload.taxSplitMode || 'EQUAL'
     );
   }
   // memberInputs: [{ memberId, included, rawValue }]
@@ -141,9 +142,9 @@ export function calculateSplits(totalPaise, splitType, memberInputs, itemizedPay
 
 /**
  * Calculate itemized splits where each item is divided equally among its sharers,
- * and tax/tip is distributed proportionally according to each participant's item subtotal.
+ * and tax/tip is distributed equally or proportionally according to each participant's item subtotal.
  */
-export function calculateItemizedSplits(items = [], taxTipPaise = 0, validMemberIds = []) {
+export function calculateItemizedSplits(items = [], taxTipPaise = 0, validMemberIds = [], taxSplitMode = 'EQUAL') {
   const cleanTaxTipPaise = Math.round(Number(taxTipPaise || 0));
   if (cleanTaxTipPaise < 0) {
     return {
@@ -221,24 +222,34 @@ export function calculateItemizedSplits(items = [], taxTipPaise = 0, validMember
 
   const participantIds = Array.from(subtotalByMember.keys()).sort((a, b) => a.localeCompare(b));
   const taxShares = new Map();
-  let sumFloorTax = 0;
-  const remEntries = [];
 
-  for (const memberId of participantIds) {
-    const itemSubtotal = subtotalByMember.get(memberId) || 0;
-    const exactNumer = itemSubtotal * cleanTaxTipPaise;
-    const floorTax = subtotalPaise > 0 ? Math.floor(exactNumer / subtotalPaise) : 0;
-    const remNumer = subtotalPaise > 0 ? (exactNumer % subtotalPaise) : 0;
-    taxShares.set(memberId, floorTax);
-    sumFloorTax += floorTax;
-    remEntries.push({ memberId, remNumer });
-  }
+  if (taxSplitMode === 'PROPORTIONAL' && subtotalPaise > 0) {
+    let sumFloorTax = 0;
+    const remEntries = [];
 
-  const remTaxPaise = cleanTaxTipPaise - sumFloorTax;
-  remEntries.sort((a, b) => b.remNumer - a.remNumer || a.memberId.localeCompare(b.memberId));
-  for (let i = 0; i < remTaxPaise && i < remEntries.length; i++) {
-    const mId = remEntries[i].memberId;
-    taxShares.set(mId, taxShares.get(mId) + 1);
+    for (const memberId of participantIds) {
+      const itemSubtotal = subtotalByMember.get(memberId) || 0;
+      const exactNumer = itemSubtotal * cleanTaxTipPaise;
+      const floorTax = Math.floor(exactNumer / subtotalPaise);
+      const remNumer = exactNumer % subtotalPaise;
+      taxShares.set(memberId, floorTax);
+      sumFloorTax += floorTax;
+      remEntries.push({ memberId, remNumer });
+    }
+
+    const remTaxPaise = cleanTaxTipPaise - sumFloorTax;
+    remEntries.sort((a, b) => b.remNumer - a.remNumer || a.memberId.localeCompare(b.memberId));
+    for (let i = 0; i < remTaxPaise && i < remEntries.length; i++) {
+      const mId = remEntries[i].memberId;
+      taxShares.set(mId, taxShares.get(mId) + 1);
+    }
+  } else {
+    const count = participantIds.length;
+    const baseTax = count > 0 ? Math.floor(cleanTaxTipPaise / count) : 0;
+    const remTax = count > 0 ? (cleanTaxTipPaise % count) : 0;
+    participantIds.forEach((memberId, idx) => {
+      taxShares.set(memberId, baseTax + (idx < remTax ? 1 : 0));
+    });
   }
 
   const splits = participantIds.map(memberId => {
@@ -247,7 +258,8 @@ export function calculateItemizedSplits(items = [], taxTipPaise = 0, validMember
     return {
       memberId,
       amountPaise: itemSubtotal + memberTaxShare,
-      metaValue: itemSubtotal
+      metaValue: itemSubtotal,
+      taxSharePaise: memberTaxShare
     };
   });
 

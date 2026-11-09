@@ -9,7 +9,11 @@ export const uiState = {
   editingMemberIdx: null,
   pendingConfirmCallback: null,
   tempExpenseItems: [],
-  tempTaxTipRupees: ''
+  tempTaxTipRupees: '',
+  tempTaxSplitMode: 'EQUAL',
+  expenseSearchQuery: '',
+  expenseMemberFilter: 'ALL',
+  expandedItemizedExpIds: []
 };
 
 export function initAppState() {

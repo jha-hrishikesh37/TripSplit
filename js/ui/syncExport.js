@@ -82,7 +82,7 @@ export function exportTripToCSV(trip) {
   showToast('CSV report downloaded!');
 }
 
-export function promptIdentitySelection(tripId) {
+export function promptIdentitySelection(tripId, onComplete) {
   const trip = (uiState.appState?.trips || []).find(t => t.id === tripId && !t.deleted);
   if (!trip) return;
   uiState.appState.activeTripId = trip.id;
@@ -95,26 +95,94 @@ export function promptIdentitySelection(tripId) {
 
   const container = document.getElementById('welcomeMembersButtons');
   if (!container) return;
-  container.innerHTML = trip.members.map(m => `
+
+  const memberButtonsHtml = trip.members.map(m => `
     <button type="button" class="btn btn-secondary" data-pick-identity="${escapeHtml(m.id)}" style="justify-content:space-between;">
       <span>I am <strong>${escapeHtml(m.name)}</strong></span>
       <span>${m.id === trip.organizerId ? '👑 Organizer' : '➔'}</span>
     </button>
   `).join('');
 
+  const addSelfHtml = `
+    <div class="identity-add-self-box">
+      <input type="text" id="identityNewMemberInput" class="form-control form-control-sm" placeholder="Not listed? Enter your name..." maxlength="40" />
+      <button type="button" id="btnIdentityAddSelf" class="btn btn-primary btn-sm">+ Join</button>
+    </div>
+  `;
+
+  container.innerHTML = memberButtonsHtml + addSelfHtml;
+
+  const finishSelection = (selectedMemId, joinedName) => {
+    if (!uiState.appState.activeIdentities) {
+      uiState.appState.activeIdentities = {};
+    }
+    uiState.appState.activeIdentities[trip.id] = selectedMemId;
+
+    if (!uiState.appState.activeMemberByTrip) {
+      uiState.appState.activeMemberByTrip = {};
+    }
+    uiState.appState.activeMemberByTrip[trip.id] = selectedMemId;
+    uiState.appState.activeTripId = trip.id;
+
+    StorageService.saveState(uiState.appState);
+    if (typeof StorageService.syncTripWithCloud === 'function') {
+      StorageService.syncTripWithCloud(uiState.appState, trip.id);
+    }
+    const modalEl = document.getElementById('welcomeIdentityModal');
+    if (modalEl) modalEl.classList.remove('open');
+
+    if (typeof onComplete === 'function') {
+      onComplete();
+    } else {
+      renderAll();
+    }
+
+    if (joinedName) {
+      showToast(`Joined group as ${joinedName}!`);
+    } else {
+      showToast(`Identity set to ${getMemberName(trip, selectedMemId)}`);
+    }
+  };
+
   container.querySelectorAll('[data-pick-identity]').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (!uiState.appState.activeIdentities) {
-        uiState.appState.activeIdentities = {};
-      }
-      uiState.appState.activeIdentities[trip.id] = btn.dataset.pickIdentity;
-      uiState.appState.activeTripId = trip.id;
-      StorageService.saveState(uiState.appState);
-      const modalEl = document.getElementById('welcomeIdentityModal');
-      if (modalEl) modalEl.classList.remove('open');
-      renderAll();
-      showToast(`Identity set to ${getMemberName(trip, btn.dataset.pickIdentity)}`);
+      finishSelection(btn.dataset.pickIdentity);
     });
+  });
+
+  const handleAddSelf = () => {
+    const inputEl = document.getElementById('identityNewMemberInput');
+    const trimmedName = inputEl ? inputEl.value.trim() : '';
+    if (!trimmedName) {
+      showToast('Please enter your name');
+      return;
+    }
+    const existing = trip.members.find(
+      m => m.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    let selectedMemId;
+    if (existing) {
+      selectedMemId = existing.id;
+    } else {
+      selectedMemId = StorageService.generateId('mem');
+      trip.members.push({
+        id: selectedMemId,
+        name: trimmedName,
+        isOrganizer: false,
+        updatedAt: Date.now(),
+        revision: 1
+      });
+      trip.updatedAt = Date.now();
+    }
+    finishSelection(selectedMemId, trimmedName);
+  };
+
+  document.getElementById('btnIdentityAddSelf')?.addEventListener('click', handleAddSelf);
+  document.getElementById('identityNewMemberInput')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddSelf();
+    }
   });
 
   const modalEl = document.getElementById('welcomeIdentityModal');
@@ -123,7 +191,30 @@ export function promptIdentitySelection(tripId) {
 
 export function buildCleanAppInviteWhatsAppUrl() {
   const cleanAppUrl = window.location.origin + window.location.pathname;
-  const text = `Hey! Check out our bill-splitting app to split trip & dinner expenses easily (no login or download needed): ${cleanAppUrl}`;
+  const text = [
+    "Hey! We've been using *TripSplit* to split our dinner bills & trip expenses — it's super clean:",
+    "",
+    "🧾 Snap any restaurant bill & tap who ate what",
+    "⚡ Works right in the browser (no app download or login)",
+    "🧮 Auto-calculates exact shares & minimum settle-up",
+    "",
+    `Try it for your next outing:\n${cleanAppUrl}`
+  ].join('\n');
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+export function buildTripInviteWhatsAppUrl(trip) {
+  const inviteUrl = buildCloudInviteUrl(trip.id);
+  const text = [
+    `💸 *Join "${trip.name}" on TripSplit!*`,
+    "",
+    "I've set up our group tab here so we don't have to do manual math:",
+    "1️⃣ Tap the link & pick your name",
+    "2️⃣ Check what you ate on bills or add your expenses",
+    "⚡ _No app download or login needed!_",
+    "",
+    `👉 ${inviteUrl}`
+  ].join('\n');
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 

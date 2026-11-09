@@ -20,7 +20,7 @@ import {
   slugify,
   escapeHtml
 } from './ui/helpers.js';
-import { renderAll } from './ui/views.js';
+import { renderAll, renderExpensesTab } from './ui/views.js';
 import {
   openExpenseModal,
   updateSplitTypeTabsUI,
@@ -44,7 +44,8 @@ import {
   promptIdentitySelection,
   checkUrlForSyncPayload,
   buildCloudInviteUrl,
-  buildCleanAppInviteWhatsAppUrl
+  buildCleanAppInviteWhatsAppUrl,
+  buildTripInviteWhatsAppUrl
 } from './ui/syncExport.js';
 
 export function bindEvents() {
@@ -114,6 +115,19 @@ export function bindEvents() {
     }
   });
 
+  // Search & Member Filter in Expenses Feed
+  document.getElementById('expenseSearchInput')?.addEventListener('input', (e) => {
+    uiState.expenseSearchQuery = e.target.value;
+    const trip = getActiveTrip();
+    renderExpensesTab(trip, getActiveMemberId(trip));
+  });
+
+  document.getElementById('expenseMemberFilter')?.addEventListener('change', (e) => {
+    uiState.expenseMemberFilter = e.target.value;
+    const trip = getActiveTrip();
+    renderExpensesTab(trip, getActiveMemberId(trip));
+  });
+
   // Category Filter Chips
   document.getElementById('categoryFilterRow')?.addEventListener('click', (e) => {
     const chip = e.target.closest('[data-cat-filter]');
@@ -125,9 +139,27 @@ export function bindEvents() {
 
   // Open Add Expense Modal
   document.getElementById('btnOpenAddExpense')?.addEventListener('click', () => openExpenseModal(null));
+  document.getElementById('btnOpenScanSplit')?.addEventListener('click', () => openExpenseModal(null, 'ITEMIZED'));
 
-  // Edit & Soft-Delete Expense Delegation
+  // Edit, Soft-Delete & Expand Items Delegation
   document.getElementById('expensesListContainer')?.addEventListener('click', (e) => {
+    const toggleItemsBtn = e.target.closest('[data-toggle-items]');
+    if (toggleItemsBtn) {
+      const expId = toggleItemsBtn.dataset.toggleItems;
+      if (!Array.isArray(uiState.expandedItemizedExpIds)) {
+        uiState.expandedItemizedExpIds = [];
+      }
+      const idx = uiState.expandedItemizedExpIds.indexOf(expId);
+      if (idx === -1) {
+        uiState.expandedItemizedExpIds.push(expId);
+      } else {
+        uiState.expandedItemizedExpIds.splice(idx, 1);
+      }
+      const trip = getActiveTrip();
+      renderExpensesTab(trip, getActiveMemberId(trip));
+      return;
+    }
+
     const editBtn = e.target.closest('[data-edit-exp]');
     if (editBtn) {
       openExpenseModal(editBtn.dataset.editExp);
@@ -242,6 +274,23 @@ export function bindEvents() {
       }
       return;
     }
+    const sharerAllBtn = e.target.closest('[data-item-sharer-all]');
+    if (sharerAllBtn) {
+      const idx = parseInt(sharerAllBtn.dataset.itemSharerAll, 10);
+      const trip = getActiveTrip();
+      const item = uiState.tempExpenseItems[idx];
+      if (item && trip) {
+        const allSelected = trip.members.length > 0 && trip.members.every(m => (item.sharedBy || []).includes(m.id));
+        if (allSelected) {
+          item.sharedBy = [];
+        } else {
+          item.sharedBy = trip.members.map(m => m.id);
+        }
+        renderItemizedRows(trip);
+        updateLiveSplitCheck();
+      }
+      return;
+    }
     const sharerBtn = e.target.closest('[data-item-sharer]');
     if (sharerBtn) {
       const idx = parseInt(sharerBtn.dataset.itemSharer, 10);
@@ -260,6 +309,12 @@ export function bindEvents() {
         const trip = getActiveTrip();
         const memName = trip ? getMemberName(trip, memId) : memId;
         sharerBtn.textContent = `${isShared ? '✓ ' : ''}${memName}`;
+        const allPill = sharerBtn.closest('.item-sharers-pills')?.querySelector('.item-sharer-all');
+        if (allPill && trip) {
+          const allSelected = trip.members.length > 0 && trip.members.every(m => (item.sharedBy || []).includes(m.id));
+          allPill.classList.toggle('active', allSelected);
+          allPill.textContent = allSelected ? '✓ All' : 'All';
+        }
         updateLiveSplitCheck();
       }
       return;
@@ -269,6 +324,16 @@ export function bindEvents() {
   document.getElementById('expTaxTipInput')?.addEventListener('input', (e) => {
     uiState.tempTaxTipRupees = e.target.value;
     updateLiveSplitCheck();
+  });
+
+  document.querySelectorAll('.tax-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      uiState.tempTaxSplitMode = btn.dataset.taxMode;
+      document.querySelectorAll('.tax-mode-btn').forEach(b => {
+        b.classList.toggle('active', b === btn);
+      });
+      updateLiveSplitCheck();
+    });
   });
 
   document.getElementById('btnSelectAllMembers')?.addEventListener('click', () => {
@@ -442,12 +507,22 @@ export function bindEvents() {
     copyTextToClipboard(code, 'Sync code copied! Paste it in WhatsApp.');
   });
 
-  document.getElementById('btnQuickInviteApp')?.addEventListener('click', () => {
-    window.open(buildCleanAppInviteWhatsAppUrl(), '_blank', 'noopener,noreferrer');
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#btnQuickInviteApp')) {
+      window.open(buildCleanAppInviteWhatsAppUrl(), '_blank', 'noopener,noreferrer');
+    }
   });
 
   document.getElementById('btnWhatsAppSyncLink')?.addEventListener('click', () => {
-    window.open(buildCleanAppInviteWhatsAppUrl(), '_blank', 'noopener,noreferrer');
+    const trip = getActiveTrip();
+    if (trip) {
+      if (typeof StorageService.syncTripWithCloud === 'function') {
+        StorageService.syncTripWithCloud(uiState.appState, trip.id);
+      }
+      window.open(buildTripInviteWhatsAppUrl(trip), '_blank', 'noopener,noreferrer');
+    } else {
+      window.open(buildCleanAppInviteWhatsAppUrl(), '_blank', 'noopener,noreferrer');
+    }
   });
 
   document.getElementById('btnDownloadTripSyncFile')?.addEventListener('click', () => {

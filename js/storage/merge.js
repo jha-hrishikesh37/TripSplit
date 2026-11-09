@@ -33,6 +33,7 @@ export function mergeTripInMemory(state, payload) {
     };
     if (exp.splitType === 'ITEMIZED' || Array.isArray(exp.items)) {
       sanitizedExp.taxTipPaise = Math.max(0, Math.round(Number(exp.taxTipPaise || 0)));
+      sanitizedExp.taxSplitMode = exp.taxSplitMode === 'PROPORTIONAL' ? 'PROPORTIONAL' : 'EQUAL';
       sanitizedExp.items = (Array.isArray(exp.items) ? exp.items : []).map(it => ({
         id: String(it?.id || ''),
         name: String(it?.name || '').trim(),

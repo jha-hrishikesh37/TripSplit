@@ -462,6 +462,27 @@
     </div>
   </div>
 
+  <!-- ==========================================================================
+       MODAL 6: PWA PRINT / PDF FALLBACK MODAL
+       ========================================================================== -->
+  <div class="modal-backdrop" id="printFallbackModal">
+    <div class="modal-panel" style="max-width: 420px;" role="dialog" aria-labelledby="printFallbackModalTitle">
+      <div class="modal-header">
+        <h3 class="modal-title" id="printFallbackModalTitle">Print / Save PDF</h3>
+        <button type="button" class="icon-btn" data-close="printFallbackModal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; margin-bottom: 0;">
+          Direct printing isn't supported in this PWA view. Opening print view in browser...
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="printFallbackModal">Close</button>
+        <button type="button" class="btn btn-primary" id="btnOpenBrowserPrint">Open in Browser</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="./js/app.js"></script>
 </body>
 

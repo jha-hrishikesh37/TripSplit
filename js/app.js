@@ -632,26 +632,132 @@ export function bindEvents() {
 
   if (window.matchMedia) {
     const printMedia = window.matchMedia('print');
-    printMedia.addEventListener('change', (e) => {
-      if (e.matches) {
-        onEnterPrint();
-      } else {
-        onLeavePrint();
-      }
-    });
+    if (typeof printMedia.addEventListener === 'function') {
+      printMedia.addEventListener('change', (e) => {
+        if (e.matches) {
+          onEnterPrint();
+        } else {
+          onLeavePrint();
+        }
+      });
+    } else if (typeof printMedia.addListener === 'function') {
+      printMedia.addListener((e) => {
+        if (e.matches) {
+          onEnterPrint();
+        } else {
+          onLeavePrint();
+        }
+      });
+    }
   }
 
   document.getElementById('btnPrintPDF')?.addEventListener('click', () => {
-    const prevTheme = document.documentElement.getAttribute('data-theme');
-    document.documentElement.setAttribute('data-theme', 'light');
-    setTimeout(() => {
+    // Ensure light theme is active before print
+    onEnterPrint();
+
+    const isStandalone = Boolean(
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator?.standalone
+    );
+
+    const triggerFallback = () => {
+      try {
+        const printWindow = window.open('', '_blank');
+        if (printWindow && printWindow.document) {
+          const trip = getActiveTrip();
+          const tripTitle = trip ? escapeHtml(trip.name) : 'TripSplit';
+          const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+            .map(el => el.outerHTML)
+            .join('\n');
+          const heroHtml = document.getElementById('heroSummary')?.innerHTML || '';
+          const expensesHtml = document.getElementById('tab-expenses')?.innerHTML || '';
+          const settlementHtml = document.getElementById('tab-settlement')?.innerHTML || '';
+          const categoriesHtml = document.getElementById('tab-categories')?.innerHTML || '';
+
+          printWindow.document.open();
+          printWindow.document.write(`<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <base href="${window.location.href}" />
+  <title>${tripTitle} — Print Report</title>
+  ${styles}
+  <style>
+    body { background-color: #ffffff !important; color: #0f172a !important; padding: 20px; font-size: 13px; }
+    .no-print, .nav-tabs, .fab-container, .header-actions, .filter-row, .modal-backdrop, .toast-container, #tab-sync, input, select { display: none !important; }
+    .tab-section { display: block !important; margin-bottom: 24px; }
+    .app-container { max-width: 800px; margin: 0 auto; }
+    @media print {
+      .print-fallback-controls { display: none !important; }
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="print-fallback-controls no-print" style="max-width: 800px; margin: 0 auto 16px auto; display: flex; gap: 8px;">
+    <button type="button" onclick="window.print()" style="padding: 8px 16px; background: #4f46e5; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🖨️ Print / Save PDF</button>
+    <button type="button" onclick="window.close()" style="padding: 8px 16px; background: #e2e8f0; color: #1e293b; border: none; border-radius: 6px; cursor: pointer;">✕ Close</button>
+  </div>
+  <div class="app-container">
+    <header style="margin-bottom: 16px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">
+      <h1 style="font-size: 1.4rem; margin: 0 0 4px 0; color: #0f172a;">${tripTitle}</h1>
+      <p style="color: #64748b; font-size: 0.85rem; margin: 0;">TripSplit Report • ${new Date().toLocaleDateString()}</p>
+    </header>
+    <div class="hero-summary">${heroHtml}</div>
+    <div class="tab-section">${expensesHtml}</div>
+    <div class="tab-section">${settlementHtml}</div>
+    <div class="tab-section">${categoriesHtml}</div>
+  </div>
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        try { window.print(); } catch (e) {}
+      }, 350);
+    });
+  <\/script>
+</body>
+</html>`);
+          printWindow.document.close();
+          onLeavePrint();
+          return;
+        }
+      } catch (e) {
+        // Fall through to browser open
+      }
+
+      showToast("Direct printing isn't supported in this PWA view. Opening print view in browser...");
+      let browserWin = null;
+      try {
+        browserWin = window.open(window.location.href, '_blank');
+      } catch (e) {}
+
+      if (!browserWin || browserWin.closed || typeof browserWin.closed === 'undefined') {
+        const fallbackModal = document.getElementById('printFallbackModal');
+        if (fallbackModal) {
+          fallbackModal.classList.add('open');
+        }
+      }
+      onLeavePrint();
+    };
+
+    if (isStandalone || typeof window.print !== 'function') {
+      triggerFallback();
+      return;
+    }
+
+    try {
       window.print();
       setTimeout(() => {
-        if (prevTheme) {
-          document.documentElement.setAttribute('data-theme', prevTheme);
-        }
-      }, 300);
-    }, 30);
+        onLeavePrint();
+      }, 500);
+    } catch (err) {
+      triggerFallback();
+    }
+  });
+
+  document.getElementById('btnOpenBrowserPrint')?.addEventListener('click', () => {
+    document.getElementById('printFallbackModal')?.classList.remove('open');
+    window.open(window.location.href, '_blank');
   });
 
   document.getElementById('btnBackupAll')?.addEventListener('click', () => {

@@ -674,10 +674,10 @@ export function bindEvents() {
     const trip = getActiveTrip();
     if (!trip) return;
 
-    const isStandalonePWA =
-      window.matchMedia?.('(display-mode: standalone)')?.matches ||
-      window.navigator?.standalone === true ||
-      (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') && typeof navigator.share === 'function');
+    const isStandalonePWA = Boolean(
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator?.standalone === true
+    );
 
     if (isStandalonePWA) {
       await exportTripToPDF(trip);

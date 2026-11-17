@@ -315,17 +315,25 @@
       box-shadow: var(--shadow-sm);
     }
 
-    .hero-grid {
+    .hero-grid,
+    .hero-stats,
+    .hero-stats-grid,
+    .summary-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.5rem;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .stat-box {
-      padding: 10px;
+      min-width: 0;
+      padding: 0.65rem 0.5rem;
+      text-align: center;
+      overflow: hidden;
+      box-sizing: border-box;
       background: var(--bg-subtle);
       border-radius: var(--radius-md);
-      text-align: center;
     }
 
     .stat-label {
@@ -338,7 +346,8 @@
     }
 
     .stat-value {
-      font-size: 1.05rem;
+      font-size: clamp(0.95rem, 3.8vw, 1.25rem);
+      word-break: break-word;
       font-weight: 800;
       font-variant-numeric: tabular-nums;
     }
@@ -1592,6 +1601,83 @@
       }
     }
 
+    /* In-App PDF Preview Mode */
+    .pdf-preview-bar {
+      display: none;
+    }
+
+    body.pdf-preview-mode {
+      background: #ffffff !important;
+      color: #0f172a !important;
+    }
+
+    body.pdf-preview-mode .pdf-preview-bar {
+      display: flex !important;
+      position: sticky;
+      top: 0;
+      z-index: 9999;
+      background: #1e293b;
+      color: #ffffff;
+      padding: 10px 16px;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    }
+
+    .pdf-preview-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    body.pdf-preview-mode .nav-tabs,
+    body.pdf-preview-mode .fab-container,
+    body.pdf-preview-mode .header-actions,
+    body.pdf-preview-mode .exp-actions,
+    body.pdf-preview-mode .filter-row,
+    body.pdf-preview-mode .expense-search-filter-bar,
+    body.pdf-preview-mode #tab-sync,
+    body.pdf-preview-mode .modal-backdrop {
+      display: none !important;
+    }
+
+    body.pdf-preview-mode .tab-section {
+      display: block !important;
+      margin-bottom: 24px;
+    }
+
+    body.pdf-preview-mode .card,
+    body.pdf-preview-mode .expense-item,
+    body.pdf-preview-mode .settlement-card,
+    body.pdf-preview-mode .hero-summary {
+      background: #ffffff !important;
+      color: #0f172a !important;
+      border: 1px solid #cbd5e1 !important;
+      box-shadow: none !important;
+    }
+
+    body.pdf-preview-mode .stat-box {
+      background: #f8fafc !important;
+      border: 1px solid #e2e8f0 !important;
+    }
+
+    body.pdf-preview-mode .stat-label,
+    body.pdf-preview-mode .stat-sub,
+    body.pdf-preview-mode .exp-meta,
+    body.pdf-preview-mode .section-subtitle {
+      color: #475569 !important;
+    }
+
+    body.pdf-preview-mode .stat-value,
+    body.pdf-preview-mode .exp-title,
+    body.pdf-preview-mode .card-title,
+    body.pdf-preview-mode .exp-amount {
+      color: #0f172a !important;
+    }
+
     /* Print Stylesheet for Clean PDF Output */
     @media print {
       /* Force paper-friendly color tokens regardless of active dark mode */
@@ -1640,7 +1726,9 @@
       .filter-row,
       .modal-backdrop,
       .toast-container,
-      #tab-sync {
+      #tab-sync,
+      #pdfPreviewBar,
+      .pdf-preview-bar {
         display: none !important;
       }
 

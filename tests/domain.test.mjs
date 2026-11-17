@@ -26,6 +26,7 @@ import {
 } from '../js/storage/storageAdapter.js';
 import { onRequestGet, onRequestPost } from '../functions/api/trips/[id]/sync.js';
 import { onRequestPost as onRequestPostReceiptScan } from '../functions/api/receipt/scan.js';
+import { generateTripPdfBytes } from '../js/ui/syncExport.js';
 
 test('CONFIG invariants', () => {
   assert.equal(CONFIG.APP_STORAGE_KEY, 'tripsplit_v1_state');
@@ -1708,4 +1709,48 @@ test('backend sync: onRequestPost updates deleted column to 1 when a trip is del
   assert.equal(storedRow.deleted, 1);
   const storedJson = JSON.parse(storedRow.trip_json);
   assert.equal(storedJson.deleted, true);
+});
+
+test('pdf: generateTripPdfBytes returns valid PDF 1.4 Uint8Array', () => {
+  const sampleTrip = {
+    id: 'trip_sample_pdf',
+    name: 'Goa Weekend 2026',
+    members: [
+      { id: 'mem_1', name: 'Alice', isOrganizer: true },
+      { id: 'mem_2', name: 'Bob', isOrganizer: false }
+    ],
+    expenses: [
+      {
+        id: 'exp_1',
+        title: 'Seafood Shack Dinner',
+        category: 'Food',
+        date: '2026-11-15',
+        amountPaise: 250000,
+        paidBy: 'mem_1',
+        createdBy: 'mem_1',
+        splitType: 'ITEMIZED',
+        deleted: false,
+        items: [
+          { name: 'Grilled Fish', pricePaise: 150000, sharedBy: ['mem_1', 'mem_2'] },
+          { name: 'Prawn Curry', pricePaise: 80000, sharedBy: ['mem_2'] }
+        ],
+        taxTipPaise: 20000,
+        splits: [
+          { memberId: 'mem_1', amountPaise: 85000 },
+          { memberId: 'mem_2', amountPaise: 165000 }
+        ]
+      }
+    ],
+    settlements: []
+  };
+
+  const pdfBytes = generateTripPdfBytes(sampleTrip);
+  assert.ok(pdfBytes instanceof Uint8Array, 'Must return Uint8Array');
+  assert.ok(pdfBytes.length > 0, 'PDF bytes must not be empty');
+
+  const asciiText = Buffer.from(pdfBytes).toString('latin1');
+  assert.ok(asciiText.startsWith('%PDF-1.4'), 'ASCII header must start with %PDF-1.4');
+  assert.ok(asciiText.includes('Goa Weekend 2026'), 'Must include trip name');
+  assert.ok(asciiText.includes('Rs.'), 'Must include Rs.');
+  assert.ok(asciiText.endsWith('%%EOF'), 'Must end with %%EOF');
 });

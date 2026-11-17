@@ -41,6 +41,7 @@ import {
 import {
   buildSettlementSummaryText,
   exportTripToCSV,
+  exportTripToPDF,
   promptIdentitySelection,
   checkUrlForSyncPayload,
   buildCloudInviteUrl,
@@ -669,8 +670,10 @@ export function bindEvents() {
     }
   };
 
-  document.getElementById('btnPrintPDF')?.addEventListener('click', () => {
-    enterPdfPreviewMode();
+  document.getElementById('btnPrintPDF')?.addEventListener('click', async () => {
+    const trip = getActiveTrip();
+    if (!trip) return;
+    await exportTripToPDF(trip);
   });
 
   document.getElementById('btnExitPdfPreview')?.addEventListener('click', () => {

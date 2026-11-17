@@ -17,6 +17,21 @@
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container"></div>
 
+  <!-- In-App Sticky PDF / Print Preview Bar -->
+  <div id="pdfPreviewBar" class="pdf-preview-bar no-print">
+    <button type="button" class="btn btn-secondary btn-sm" id="btnExitPdfPreview">
+      ← Back to App
+    </button>
+    <div class="pdf-preview-actions">
+      <button type="button" class="btn btn-primary btn-sm" id="btnTriggerNativePrint">
+        🖨️ Save as PDF / Print
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" id="btnDownloadHtmlReport">
+        📥 Download Report (.html)
+      </button>
+    </div>
+  </div>
+
   <!-- Sticky Header -->
   <header class="app-header">
     <div class="app-container">
@@ -321,7 +336,7 @@
                 <strong>📷 Got a restaurant bill?</strong>
                 <span>Auto-extract dishes & GST with AI, or type items below</span>
               </div>
-              <input type="file" id="receiptFileInput" accept="image/*" capture="environment" style="display: none;" />
+              <input type="file" id="receiptFileInput" accept="image/*" style="display: none;" />
               <button type="button" id="btnScanReceipt" class="btn btn-primary btn-sm">📷 Scan Receipt</button>
             </div>
             <div id="itemizedRowsContainer" class="itemized-rows-container"></div>
@@ -458,27 +473,6 @@
         <button type="button" class="btn btn-secondary" data-close="renameMemberModal">Cancel</button>
         <button type="submit" form="renameMemberForm" class="btn btn-primary" id="btnSaveRenameMember">Save
           Name</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ==========================================================================
-       MODAL 6: PWA PRINT / PDF FALLBACK MODAL
-       ========================================================================== -->
-  <div class="modal-backdrop" id="printFallbackModal">
-    <div class="modal-panel" style="max-width: 420px;" role="dialog" aria-labelledby="printFallbackModalTitle">
-      <div class="modal-header">
-        <h3 class="modal-title" id="printFallbackModalTitle">Print / Save PDF</h3>
-        <button type="button" class="icon-btn" data-close="printFallbackModal" aria-label="Close">✕</button>
-      </div>
-      <div class="modal-body">
-        <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; margin-bottom: 0;">
-          Direct printing isn't supported in this PWA view. Opening print view in browser...
-        </p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-close="printFallbackModal">Close</button>
-        <button type="button" class="btn btn-primary" id="btnOpenBrowserPrint">Open in Browser</button>
       </div>
     </div>
   </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tripsplit-v2.0-static';
+const CACHE_NAME = 'tabsolute-v2.2-static';
 
 const STATIC_ASSETS = [
   './',

@@ -651,113 +651,100 @@ export function bindEvents() {
     }
   }
 
+  // PDF Preview & Print Controls
+  let activeThemeBeforePreview = null;
+
+  const enterPdfPreviewMode = () => {
+    activeThemeBeforePreview = document.documentElement.getAttribute('data-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.body.classList.add('pdf-preview-mode');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const exitPdfPreviewMode = () => {
+    document.body.classList.remove('pdf-preview-mode');
+    if (activeThemeBeforePreview) {
+      document.documentElement.setAttribute('data-theme', activeThemeBeforePreview);
+      activeThemeBeforePreview = null;
+    }
+  };
+
   document.getElementById('btnPrintPDF')?.addEventListener('click', () => {
-    // Ensure light theme is active before print
-    onEnterPrint();
+    enterPdfPreviewMode();
+  });
 
-    const isStandalone = Boolean(
-      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-      window.navigator?.standalone
-    );
+  document.getElementById('btnExitPdfPreview')?.addEventListener('click', () => {
+    exitPdfPreviewMode();
+  });
 
-    const triggerFallback = () => {
-      try {
-        const printWindow = window.open('', '_blank');
-        if (printWindow && printWindow.document) {
-          const trip = getActiveTrip();
-          const tripTitle = trip ? escapeHtml(trip.name) : 'TripSplit';
-          const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-            .map(el => el.outerHTML)
-            .join('\n');
-          const heroHtml = document.getElementById('heroSummary')?.innerHTML || '';
-          const expensesHtml = document.getElementById('tab-expenses')?.innerHTML || '';
-          const settlementHtml = document.getElementById('tab-settlement')?.innerHTML || '';
-          const categoriesHtml = document.getElementById('tab-categories')?.innerHTML || '';
+  document.getElementById('btnTriggerNativePrint')?.addEventListener('click', () => {
+    try {
+      window.print();
+    } catch (err) {
+      showToast("Direct printing is not supported in this view. Use 'Download Report (.html)' above.");
+    }
+  });
 
-          printWindow.document.open();
-          printWindow.document.write(`<!DOCTYPE html>
+  document.getElementById('btnDownloadHtmlReport')?.addEventListener('click', async () => {
+    const trip = getActiveTrip();
+    const tripTitle = trip ? escapeHtml(trip.name) : 'TripSplit';
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map(el => el.outerHTML)
+      .join('\n');
+    const heroHtml = document.getElementById('heroSummary')?.innerHTML || '';
+    const expensesHtml = document.getElementById('tab-expenses')?.innerHTML || '';
+    const settlementHtml = document.getElementById('tab-settlement')?.innerHTML || '';
+    const categoriesHtml = document.getElementById('tab-categories')?.innerHTML || '';
+
+    const reportHtml = `<!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <base href="${window.location.href}" />
-  <title>${tripTitle} — Print Report</title>
+  <title>${tripTitle} — Report</title>
   ${styles}
   <style>
-    body { background-color: #ffffff !important; color: #0f172a !important; padding: 20px; font-size: 13px; }
-    .no-print, .nav-tabs, .fab-container, .header-actions, .filter-row, .modal-backdrop, .toast-container, #tab-sync, input, select { display: none !important; }
+    body { background-color: #ffffff !important; color: #0f172a !important; padding: 20px; font-size: 13px; font-family: system-ui, -apple-system, sans-serif; }
+    .no-print, .nav-tabs, .fab-container, .header-actions, .filter-row, .expense-search-filter-bar, .modal-backdrop, .toast-container, #tab-sync, #pdfPreviewBar, input, select { display: none !important; }
     .tab-section { display: block !important; margin-bottom: 24px; }
     .app-container { max-width: 800px; margin: 0 auto; }
-    @media print {
-      .print-fallback-controls { display: none !important; }
-    }
+    .card, .expense-item, .settlement-card, .hero-summary { background: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; }
+    .stat-box { background: #f8fafc !important; border: 1px solid #e2e8f0 !important; }
   </style>
 </head>
 <body data-theme="light">
-  <div class="print-fallback-controls no-print" style="max-width: 800px; margin: 0 auto 16px auto; display: flex; gap: 8px;">
-    <button type="button" onclick="window.print()" style="padding: 8px 16px; background: #4f46e5; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🖨️ Print / Save PDF</button>
-    <button type="button" onclick="window.close()" style="padding: 8px 16px; background: #e2e8f0; color: #1e293b; border: none; border-radius: 6px; cursor: pointer;">✕ Close</button>
-  </div>
   <div class="app-container">
-    <header style="margin-bottom: 16px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">
+    <header style="border-bottom: 2px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 16px;">
       <h1 style="font-size: 1.4rem; margin: 0 0 4px 0; color: #0f172a;">${tripTitle}</h1>
-      <p style="color: #64748b; font-size: 0.85rem; margin: 0;">TripSplit Report • ${new Date().toLocaleDateString()}</p>
+      <p style="color: #64748b; font-size: 0.85rem; margin: 0;">TripSplit Report • Generated ${new Date().toLocaleDateString()}</p>
     </header>
     <div class="hero-summary">${heroHtml}</div>
     <div class="tab-section">${expensesHtml}</div>
     <div class="tab-section">${settlementHtml}</div>
     <div class="tab-section">${categoriesHtml}</div>
   </div>
-  <script>
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        try { window.print(); } catch (e) {}
-      }, 350);
-    });
-  <\/script>
 </body>
-</html>`);
-          printWindow.document.close();
-          onLeavePrint();
+</html>`;
+
+    const fileName = `${slugify(trip?.name || 'tripsplit')}_report.html`;
+
+    if (navigator.share && navigator.canShare) {
+      try {
+        const file = new File([reportHtml], fileName, { type: 'text/html' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `${tripTitle} — Report`,
+            files: [file]
+          });
           return;
         }
-      } catch (e) {
-        // Fall through to browser open
+      } catch (err) {
+        if (err.name === 'AbortError') return;
       }
-
-      showToast("Direct printing isn't supported in this PWA view. Opening print view in browser...");
-      let browserWin = null;
-      try {
-        browserWin = window.open(window.location.href, '_blank');
-      } catch (e) {}
-
-      if (!browserWin || browserWin.closed || typeof browserWin.closed === 'undefined') {
-        const fallbackModal = document.getElementById('printFallbackModal');
-        if (fallbackModal) {
-          fallbackModal.classList.add('open');
-        }
-      }
-      onLeavePrint();
-    };
-
-    if (isStandalone || typeof window.print !== 'function') {
-      triggerFallback();
-      return;
     }
 
-    try {
-      window.print();
-      setTimeout(() => {
-        onLeavePrint();
-      }, 500);
-    } catch (err) {
-      triggerFallback();
-    }
-  });
-
-  document.getElementById('btnOpenBrowserPrint')?.addEventListener('click', () => {
-    document.getElementById('printFallbackModal')?.classList.remove('open');
-    window.open(window.location.href, '_blank');
+    downloadFile(fileName, reportHtml, 'text/html');
+    showToast('Report downloaded!');
   });
 
   document.getElementById('btnBackupAll')?.addEventListener('click', () => {
@@ -828,8 +815,31 @@ export function bindEvents() {
   });
 }
 
+function initAppleTouchIcon() {
+  const link = document.querySelector('link[rel="apple-touch-icon"]');
+  if (!link) return;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 180;
+      canvas.height = 180;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, 180, 180);
+        link.href = canvas.toDataURL('image/png');
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+  img.src = './icons/icon.svg';
+}
+
 export async function init() {
   initAppState();
+  initAppleTouchIcon();
   document.querySelectorAll('.currency-symbol').forEach(el => {
     el.textContent = CONFIG.CURRENCY.SYMBOL;
   });

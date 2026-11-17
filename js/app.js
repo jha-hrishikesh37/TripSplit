@@ -673,7 +673,17 @@ export function bindEvents() {
   document.getElementById('btnPrintPDF')?.addEventListener('click', async () => {
     const trip = getActiveTrip();
     if (!trip) return;
-    await exportTripToPDF(trip);
+
+    const isStandalonePWA =
+      window.matchMedia?.('(display-mode: standalone)')?.matches ||
+      window.navigator?.standalone === true ||
+      (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') && typeof navigator.share === 'function');
+
+    if (isStandalonePWA) {
+      await exportTripToPDF(trip);
+    } else {
+      enterPdfPreviewMode();
+    }
   });
 
   document.getElementById('btnExitPdfPreview')?.addEventListener('click', () => {

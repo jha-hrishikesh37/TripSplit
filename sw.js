@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tabsolute-v2.2-static';
+const CACHE_NAME = 'tabsolute-v2.3-static';
 
 const STATIC_ASSETS = [
   './',

@@ -1593,8 +1593,13 @@
       .header-controls {
         gap: 4px;
       }
-      .brand {
+      .brand,
+      .brand-area {
         font-size: 1.05rem;
+        min-width: 0;
+      }
+      .brand-tagline {
+        white-space: nowrap;
       }
       .context-bar {
         gap: 6px;
@@ -1627,6 +1632,25 @@
         padding: 10px 16px;
         font-size: 0.82rem;
         white-space: nowrap;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .brand-icon,
+      .app-logo {
+        width: 32px;
+        height: 32px;
+      }
+      .brand-name {
+        font-size: 1.1rem;
+      }
+      .brand-tagline {
+        font-size: 0.65rem;
+      }
+      .icon-btn,
+      #btnCloudSyncNow {
+        width: 34px;
+        height: 34px;
       }
     }
 

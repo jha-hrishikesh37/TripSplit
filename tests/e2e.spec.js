@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('TripSplit E2E Test Suite', () => {
+test.describe('tabsolute E2E Test Suite', () => {
 
   test.beforeEach(async ({ page }) => {
     // Clear localStorage to always start with fresh seed data

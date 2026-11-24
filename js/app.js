@@ -700,7 +700,7 @@ export function bindEvents() {
 
   document.getElementById('btnDownloadHtmlReport')?.addEventListener('click', async () => {
     const trip = getActiveTrip();
-    const tripTitle = trip ? escapeHtml(trip.name) : 'TripSplit';
+    const tripTitle = trip ? escapeHtml(trip.name) : 'tabsolute';
     const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
       .map(el => el.outerHTML)
       .join('\n');
@@ -729,7 +729,7 @@ export function bindEvents() {
   <div class="app-container">
     <header style="border-bottom: 2px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 16px;">
       <h1 style="font-size: 1.4rem; margin: 0 0 4px 0; color: #0f172a;">${tripTitle}</h1>
-      <p style="color: #64748b; font-size: 0.85rem; margin: 0;">TripSplit Report • Generated ${new Date().toLocaleDateString()}</p>
+      <p style="color: #64748b; font-size: 0.85rem; margin: 0;">tabsolute Report • Generated ${new Date().toLocaleDateString()}</p>
     </header>
     <div class="hero-summary">${heroHtml}</div>
     <div class="tab-section">${expensesHtml}</div>
@@ -739,7 +739,7 @@ export function bindEvents() {
 </body>
 </html>`;
 
-    const fileName = `${slugify(trip?.name || 'tripsplit')}_report.html`;
+    const fileName = `${slugify(trip?.name || 'tabsolute')}_report.html`;
 
     if (navigator.share && navigator.canShare) {
       try {

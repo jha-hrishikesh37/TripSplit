@@ -36,7 +36,7 @@ export function buildSettlementSummaryText(trip) {
     });
   }
 
-  lines.push('', 'Tabsolute (Scan. Split. Settle.)');
+  lines.push('', 'tabsolute (Scan. Split. Settle.)');
   return lines.join('\n');
 }
 
@@ -193,7 +193,7 @@ export function promptIdentitySelection(tripId, onComplete) {
 export function buildCleanAppInviteWhatsAppUrl() {
   const cleanAppUrl = window.location.origin + window.location.pathname;
   const text = [
-    "Hey! We've been using *TripSplit* to split our dinner bills & trip expenses — it's super clean:",
+    "Hey! We've been using *tabsolute* (Scan. Split. Settle.) to split our dinner bills & trip expenses — it's super clean:",
     "",
     "🧾 Snap any restaurant bill & tap who ate what",
     "⚡ Works right in the browser (no app download or login)",
@@ -207,7 +207,7 @@ export function buildCleanAppInviteWhatsAppUrl() {
 export function buildTripInviteWhatsAppUrl(trip) {
   const inviteUrl = buildCloudInviteUrl(trip.id);
   const text = [
-    `💸 *Join "${trip.name}" on TripSplit!*`,
+    `💸 *Join "${trip.name}" on tabsolute!*`,
     "",
     "I've set up our group tab here so we don't have to do manual math:",
     "1️⃣ Tap the link & pick your name",

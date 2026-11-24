@@ -275,4 +275,56 @@ test.describe('TripSplit E2E Test Suite', () => {
     const swRes = await page.request.get('/sw.js');
     expect(swRes.status()).toBe(200);
   });
+
+  test('Test 9: Scan & Split Itemized Flow, Sharer Toggle, Search & Hero Quick Invite', async ({ page }) => {
+    // 1. Verify #btnQuickInviteApp is rendered cleanly inside the Hero section (#heroSummary)
+    const heroQuickInvite = page.locator('#heroSummary #btnQuickInviteApp');
+    await expect(heroQuickInvite).toBeVisible();
+    await expect(heroQuickInvite).toContainText('Share App');
+
+    // 2. Click #btnOpenScanSplit and verify #expenseModal opens directly in ITEMIZED mode
+    await page.click('#btnOpenScanSplit');
+    await expect(page.locator('#expenseModal')).toHaveClass(/open/);
+    await expect(page.locator('[data-split-type="ITEMIZED"]')).toHaveClass(/active/);
+    await expect(page.locator('#itemizedSplitSection')).toBeVisible();
+
+    // 3. Enter dish details and test [data-item-sharer-all="0"] toggles member pills
+    await page.fill('#expTitle', 'Italian Bistro');
+    await page.locator('.item-name-input[data-item-idx="0"]').fill('Truffle Pasta');
+    await page.locator('.item-price-input[data-item-idx="0"]').fill('600');
+
+    // Member pills for item 0
+    const sharerPills = page.locator('[data-item-sharer="0"]');
+    const pillCount = await sharerPills.count();
+    expect(pillCount).toBeGreaterThan(0);
+
+    // Click "All" toggle button [data-item-sharer-all="0"] -> toggles off all member pills
+    await page.click('[data-item-sharer-all="0"]');
+    for (let i = 0; i < pillCount; i++) {
+      await expect(sharerPills.nth(i)).not.toHaveClass(/active/);
+    }
+
+    // Click "All" toggle again -> toggles all member pills back on
+    await page.click('[data-item-sharer-all="0"]');
+    for (let i = 0; i < pillCount; i++) {
+      await expect(sharerPills.nth(i)).toHaveClass(/active/);
+    }
+
+    // Submit expense
+    await page.click('button[type="submit"][form="expenseForm"]');
+    await expect(page.locator('#expenseModal')).not.toHaveClass(/open/);
+
+    // 4. Verify search by dish name ("Truffle Pasta") filters expenses feed
+    const searchInput = page.locator('#expenseSearchInput');
+    await searchInput.fill('Truffle');
+    await expect(page.locator('#expensesListContainer')).toContainText('Italian Bistro');
+
+    // Searching for a non-existent dish name filters it out
+    await searchInput.fill('NonExistentDishXYZ');
+    await expect(page.locator('#expensesListContainer')).not.toContainText('Italian Bistro');
+
+    // Clear search filter restores the item
+    await searchInput.fill('');
+    await expect(page.locator('#expensesListContainer')).toContainText('Italian Bistro');
+  });
 });

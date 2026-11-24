@@ -17,6 +17,21 @@
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container"></div>
 
+  <!-- In-App Sticky PDF / Print Preview Bar -->
+  <div id="pdfPreviewBar" class="pdf-preview-bar no-print">
+    <button type="button" class="btn btn-secondary btn-sm" id="btnExitPdfPreview">
+      ← Back to App
+    </button>
+    <div class="pdf-preview-actions">
+      <button type="button" class="btn btn-primary btn-sm" id="btnTriggerNativePrint">
+        🖨️ Save as PDF / Print
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" id="btnDownloadHtmlReport">
+        📥 Download Report (.html)
+      </button>
+    </div>
+  </div>
+
   <!-- Sticky Header -->
   <header class="app-header">
     <div class="app-container">
@@ -117,6 +132,12 @@
 
     <!-- TAB 1: EXPENSES -->
     <section id="tab-expenses" class="tab-section">
+      <div class="expense-search-filter-bar no-print">
+        <input type="search" id="expenseSearchInput" class="form-control form-control-sm" placeholder="🔍 Search expenses or dishes (e.g. Naan, Cab)..." aria-label="Search expenses" />
+        <select id="expenseMemberFilter" class="form-control form-control-sm" aria-label="Filter by member">
+          <option value="ALL">👥 All Members</option>
+        </select>
+      </div>
       <div class="filter-row no-print" id="categoryFilterRow"></div>
       <div id="expensesListContainer" class="expense-list"></div>
     </section>
@@ -178,7 +199,7 @@
         </p>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-bottom: 12px;">
           <button type="button" class="btn btn-whatsapp" id="btnWhatsAppSyncLink">
-            Share Invite / Sync on WhatsApp
+            💬 Invite a Friend on WhatsApp
           </button>
           <button type="button" id="btnCopyCloudLink" class="btn btn-secondary">
             🔗 Copy Cloud Invite Link
@@ -249,6 +270,7 @@
 
   <!-- Floating Action Button for Adding Expense -->
   <div class="fab-container no-print">
+    <button type="button" id="btnOpenScanSplit" class="btn btn-scan-star">🧾 Scan / Who Ate What</button>
     <button type="button" class="fab-btn" id="btnOpenAddExpense">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
         stroke-linecap="round" stroke-linejoin="round">
@@ -306,20 +328,30 @@
 
           <div class="split-type-tabs" role="radiogroup">
             <button type="button" class="split-tab-btn active" data-split-type="EQUAL">Equal</button>
+            <button type="button" class="split-tab-btn" data-split-type="ITEMIZED">🧾 Who Ate What</button>
             <button type="button" class="split-tab-btn" data-split-type="EXACT">Custom (₹)</button>
             <button type="button" class="split-tab-btn" data-split-type="PERCENT">Percent (%)</button>
-            <button type="button" class="split-tab-btn" data-split-type="ITEMIZED">🧾 Itemized</button>
           </div>
 
           <div id="itemizedSplitSection" class="itemized-split-section" style="display: none;">
+            <div class="itemized-hero-banner">
+              <div class="itemized-hero-text">
+                <strong>📷 Got a restaurant bill?</strong>
+                <span>Auto-extract dishes & GST with AI, or type items below</span>
+              </div>
+              <input type="file" id="receiptFileInput" accept="image/*" style="display: none;" />
+              <button type="button" id="btnScanReceipt" class="btn btn-primary btn-sm">📷 Scan Receipt</button>
+            </div>
             <div id="itemizedRowsContainer" class="itemized-rows-container"></div>
             <div class="itemized-controls-row">
               <button type="button" id="btnAddItemRow" class="btn btn-secondary btn-sm">+ Add Dish / Item</button>
-              <input type="file" id="receiptFileInput" accept="image/*" style="display: none;" />
-              <button type="button" id="btnScanReceipt" class="btn btn-secondary btn-sm">📷 Scan Receipt</button>
               <div class="itemized-tax-group">
                 <label for="expTaxTipInput">Tax / Tip / Extra (₹)</label>
                 <input type="number" id="expTaxTipInput" class="form-control" step="0.01" min="0" placeholder="0.00" value="0" />
+                <div class="tax-mode-toggle" role="group" aria-label="Tax split mode">
+                  <button type="button" class="tax-mode-btn active" data-tax-mode="EQUAL">Equal Tax</button>
+                  <button type="button" class="tax-mode-btn" data-tax-mode="PROPORTIONAL">By Share</button>
+                </div>
               </div>
             </div>
             <div id="itemizedMemberPreview" class="itemized-member-preview"></div>

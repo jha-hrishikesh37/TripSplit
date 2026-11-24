@@ -20,7 +20,7 @@ import {
   slugify,
   escapeHtml
 } from './ui/helpers.js';
-import { renderAll } from './ui/views.js';
+import { renderAll, renderExpensesTab } from './ui/views.js';
 import {
   openExpenseModal,
   updateSplitTypeTabsUI,
@@ -41,9 +41,12 @@ import {
 import {
   buildSettlementSummaryText,
   exportTripToCSV,
+  exportTripToPDF,
   promptIdentitySelection,
   checkUrlForSyncPayload,
-  buildCloudInviteUrl
+  buildCloudInviteUrl,
+  buildCleanAppInviteWhatsAppUrl,
+  buildTripInviteWhatsAppUrl
 } from './ui/syncExport.js';
 
 export function bindEvents() {
@@ -113,6 +116,19 @@ export function bindEvents() {
     }
   });
 
+  // Search & Member Filter in Expenses Feed
+  document.getElementById('expenseSearchInput')?.addEventListener('input', (e) => {
+    uiState.expenseSearchQuery = e.target.value;
+    const trip = getActiveTrip();
+    renderExpensesTab(trip, getActiveMemberId(trip));
+  });
+
+  document.getElementById('expenseMemberFilter')?.addEventListener('change', (e) => {
+    uiState.expenseMemberFilter = e.target.value;
+    const trip = getActiveTrip();
+    renderExpensesTab(trip, getActiveMemberId(trip));
+  });
+
   // Category Filter Chips
   document.getElementById('categoryFilterRow')?.addEventListener('click', (e) => {
     const chip = e.target.closest('[data-cat-filter]');
@@ -124,9 +140,27 @@ export function bindEvents() {
 
   // Open Add Expense Modal
   document.getElementById('btnOpenAddExpense')?.addEventListener('click', () => openExpenseModal(null));
+  document.getElementById('btnOpenScanSplit')?.addEventListener('click', () => openExpenseModal(null, 'ITEMIZED'));
 
-  // Edit & Soft-Delete Expense Delegation
+  // Edit, Soft-Delete & Expand Items Delegation
   document.getElementById('expensesListContainer')?.addEventListener('click', (e) => {
+    const toggleItemsBtn = e.target.closest('[data-toggle-items]');
+    if (toggleItemsBtn) {
+      const expId = toggleItemsBtn.dataset.toggleItems;
+      if (!Array.isArray(uiState.expandedItemizedExpIds)) {
+        uiState.expandedItemizedExpIds = [];
+      }
+      const idx = uiState.expandedItemizedExpIds.indexOf(expId);
+      if (idx === -1) {
+        uiState.expandedItemizedExpIds.push(expId);
+      } else {
+        uiState.expandedItemizedExpIds.splice(idx, 1);
+      }
+      const trip = getActiveTrip();
+      renderExpensesTab(trip, getActiveMemberId(trip));
+      return;
+    }
+
     const editBtn = e.target.closest('[data-edit-exp]');
     if (editBtn) {
       openExpenseModal(editBtn.dataset.editExp);
@@ -241,6 +275,23 @@ export function bindEvents() {
       }
       return;
     }
+    const sharerAllBtn = e.target.closest('[data-item-sharer-all]');
+    if (sharerAllBtn) {
+      const idx = parseInt(sharerAllBtn.dataset.itemSharerAll, 10);
+      const trip = getActiveTrip();
+      const item = uiState.tempExpenseItems[idx];
+      if (item && trip) {
+        const allSelected = trip.members.length > 0 && trip.members.every(m => (item.sharedBy || []).includes(m.id));
+        if (allSelected) {
+          item.sharedBy = [];
+        } else {
+          item.sharedBy = trip.members.map(m => m.id);
+        }
+        renderItemizedRows(trip);
+        updateLiveSplitCheck();
+      }
+      return;
+    }
     const sharerBtn = e.target.closest('[data-item-sharer]');
     if (sharerBtn) {
       const idx = parseInt(sharerBtn.dataset.itemSharer, 10);
@@ -259,6 +310,12 @@ export function bindEvents() {
         const trip = getActiveTrip();
         const memName = trip ? getMemberName(trip, memId) : memId;
         sharerBtn.textContent = `${isShared ? '✓ ' : ''}${memName}`;
+        const allPill = sharerBtn.closest('.item-sharers-pills')?.querySelector('.item-sharer-all');
+        if (allPill && trip) {
+          const allSelected = trip.members.length > 0 && trip.members.every(m => (item.sharedBy || []).includes(m.id));
+          allPill.classList.toggle('active', allSelected);
+          allPill.textContent = allSelected ? '✓ All' : 'All';
+        }
         updateLiveSplitCheck();
       }
       return;
@@ -268,6 +325,16 @@ export function bindEvents() {
   document.getElementById('expTaxTipInput')?.addEventListener('input', (e) => {
     uiState.tempTaxTipRupees = e.target.value;
     updateLiveSplitCheck();
+  });
+
+  document.querySelectorAll('.tax-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      uiState.tempTaxSplitMode = btn.dataset.taxMode;
+      document.querySelectorAll('.tax-mode-btn').forEach(b => {
+        b.classList.toggle('active', b === btn);
+      });
+      updateLiveSplitCheck();
+    });
   });
 
   document.getElementById('btnSelectAllMembers')?.addEventListener('click', () => {
@@ -441,22 +508,22 @@ export function bindEvents() {
     copyTextToClipboard(code, 'Sync code copied! Paste it in WhatsApp.');
   });
 
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#btnQuickInviteApp')) {
+      window.open(buildCleanAppInviteWhatsAppUrl(), '_blank', 'noopener,noreferrer');
+    }
+  });
+
   document.getElementById('btnWhatsAppSyncLink')?.addEventListener('click', () => {
     const trip = getActiveTrip();
-    if (!trip) return;
-    StorageService.syncTripWithCloud(uiState.appState, trip.id);
-    const code = document.getElementById('syncCodeOutput')?.value || '';
-    const inviteLink = buildCloudInviteUrl(trip.id);
-    const message = [
-      `Join our group tab on Tabsolute (Scan. Split. Settle.): `,
-
-      ``,
-      inviteLink,
-      ``,
-      `Sync Code:`,
-      code
-    ].join('\n');
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    if (trip) {
+      if (typeof StorageService.syncTripWithCloud === 'function') {
+        StorageService.syncTripWithCloud(uiState.appState, trip.id);
+      }
+      window.open(buildTripInviteWhatsAppUrl(trip), '_blank', 'noopener,noreferrer');
+    } else {
+      window.open(buildCleanAppInviteWhatsAppUrl(), '_blank', 'noopener,noreferrer');
+    }
   });
 
   document.getElementById('btnDownloadTripSyncFile')?.addEventListener('click', () => {
@@ -566,26 +633,131 @@ export function bindEvents() {
 
   if (window.matchMedia) {
     const printMedia = window.matchMedia('print');
-    printMedia.addEventListener('change', (e) => {
-      if (e.matches) {
-        onEnterPrint();
-      } else {
-        onLeavePrint();
-      }
-    });
+    if (typeof printMedia.addEventListener === 'function') {
+      printMedia.addEventListener('change', (e) => {
+        if (e.matches) {
+          onEnterPrint();
+        } else {
+          onLeavePrint();
+        }
+      });
+    } else if (typeof printMedia.addListener === 'function') {
+      printMedia.addListener((e) => {
+        if (e.matches) {
+          onEnterPrint();
+        } else {
+          onLeavePrint();
+        }
+      });
+    }
   }
 
-  document.getElementById('btnPrintPDF')?.addEventListener('click', () => {
-    const prevTheme = document.documentElement.getAttribute('data-theme');
+  // PDF Preview & Print Controls
+  let activeThemeBeforePreview = null;
+
+  const enterPdfPreviewMode = () => {
+    activeThemeBeforePreview = document.documentElement.getAttribute('data-theme') || 'light';
     document.documentElement.setAttribute('data-theme', 'light');
-    setTimeout(() => {
+    document.body.classList.add('pdf-preview-mode');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const exitPdfPreviewMode = () => {
+    document.body.classList.remove('pdf-preview-mode');
+    if (activeThemeBeforePreview) {
+      document.documentElement.setAttribute('data-theme', activeThemeBeforePreview);
+      activeThemeBeforePreview = null;
+    }
+  };
+
+  document.getElementById('btnPrintPDF')?.addEventListener('click', async () => {
+    const trip = getActiveTrip();
+    if (!trip) return;
+
+    const isStandalonePWA = Boolean(
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator?.standalone === true
+    );
+
+    if (isStandalonePWA) {
+      await exportTripToPDF(trip);
+    } else {
+      enterPdfPreviewMode();
+    }
+  });
+
+  document.getElementById('btnExitPdfPreview')?.addEventListener('click', () => {
+    exitPdfPreviewMode();
+  });
+
+  document.getElementById('btnTriggerNativePrint')?.addEventListener('click', () => {
+    try {
       window.print();
-      setTimeout(() => {
-        if (prevTheme) {
-          document.documentElement.setAttribute('data-theme', prevTheme);
+    } catch (err) {
+      showToast("Direct printing is not supported in this view. Use 'Download Report (.html)' above.");
+    }
+  });
+
+  document.getElementById('btnDownloadHtmlReport')?.addEventListener('click', async () => {
+    const trip = getActiveTrip();
+    const tripTitle = trip ? escapeHtml(trip.name) : 'TripSplit';
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map(el => el.outerHTML)
+      .join('\n');
+    const heroHtml = document.getElementById('heroSummary')?.innerHTML || '';
+    const expensesHtml = document.getElementById('tab-expenses')?.innerHTML || '';
+    const settlementHtml = document.getElementById('tab-settlement')?.innerHTML || '';
+    const categoriesHtml = document.getElementById('tab-categories')?.innerHTML || '';
+
+    const reportHtml = `<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${tripTitle} — Report</title>
+  ${styles}
+  <style>
+    body { background-color: #ffffff !important; color: #0f172a !important; padding: 20px; font-size: 13px; font-family: system-ui, -apple-system, sans-serif; }
+    .no-print, .nav-tabs, .fab-container, .header-actions, .filter-row, .expense-search-filter-bar, .modal-backdrop, .toast-container, #tab-sync, #pdfPreviewBar, input, select { display: none !important; }
+    .tab-section { display: block !important; margin-bottom: 24px; }
+    .app-container { max-width: 800px; margin: 0 auto; }
+    .card, .expense-item, .settlement-card, .hero-summary { background: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; }
+    .stat-box { background: #f8fafc !important; border: 1px solid #e2e8f0 !important; }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="app-container">
+    <header style="border-bottom: 2px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 16px;">
+      <h1 style="font-size: 1.4rem; margin: 0 0 4px 0; color: #0f172a;">${tripTitle}</h1>
+      <p style="color: #64748b; font-size: 0.85rem; margin: 0;">TripSplit Report • Generated ${new Date().toLocaleDateString()}</p>
+    </header>
+    <div class="hero-summary">${heroHtml}</div>
+    <div class="tab-section">${expensesHtml}</div>
+    <div class="tab-section">${settlementHtml}</div>
+    <div class="tab-section">${categoriesHtml}</div>
+  </div>
+</body>
+</html>`;
+
+    const fileName = `${slugify(trip?.name || 'tripsplit')}_report.html`;
+
+    if (navigator.share && navigator.canShare) {
+      try {
+        const file = new File([reportHtml], fileName, { type: 'text/html' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `${tripTitle} — Report`,
+            files: [file]
+          });
+          return;
         }
-      }, 300);
-    }, 30);
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    downloadFile(fileName, reportHtml, 'text/html');
+    showToast('Report downloaded!');
   });
 
   document.getElementById('btnBackupAll')?.addEventListener('click', () => {
@@ -656,8 +828,31 @@ export function bindEvents() {
   });
 }
 
+function initAppleTouchIcon() {
+  const link = document.querySelector('link[rel="apple-touch-icon"]');
+  if (!link) return;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 180;
+      canvas.height = 180;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, 180, 180);
+        link.href = canvas.toDataURL('image/png');
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+  img.src = './icons/icon.svg';
+}
+
 export async function init() {
   initAppState();
+  initAppleTouchIcon();
   document.querySelectorAll('.currency-symbol').forEach(el => {
     el.textContent = CONFIG.CURRENCY.SYMBOL;
   });
@@ -672,7 +867,7 @@ export async function init() {
 
   if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
+      navigator.serviceWorker.register('./sw.js').catch(() => { });
     });
   }
 }

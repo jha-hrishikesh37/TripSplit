@@ -135,12 +135,18 @@ export function renderHeroSummary(trip, activeMemberId, settlementData) {
   if (!heroSummaryEl) return;
 
   heroSummaryEl.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
       <div>
         <h1 style="font-size:1.15rem; font-weight:800;">${escapeHtml(trip.name)}</h1>
         <span style="font-size:0.78rem; color:var(--text-muted);">${trip.members.length} members · ${(trip.expenses || []).filter(e => !e.deleted).length} expenses</span>
       </div>
-      <span class="identity-badge">Viewing as ${escapeHtml(getMemberName(trip, activeMemberId))}</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button type="button" id="btnQuickInviteApp" class="btn-whatsapp-pill no-print" title="Share TripSplit on WhatsApp" aria-label="Share TripSplit on WhatsApp">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          <span>Share App</span>
+        </button>
+        <span class="identity-badge">Viewing as ${escapeHtml(getMemberName(trip, activeMemberId))}</span>
+      </div>
     </div>
     <div class="hero-grid">
       <div class="stat-box">
@@ -162,7 +168,71 @@ export function renderHeroSummary(trip, activeMemberId, settlementData) {
   `;
 }
 
+export function formatDateGroupHeader(dateStr) {
+  if (!dateStr) return 'No Date';
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) {
+        const today = new Date();
+        const isToday = d.getFullYear() === today.getFullYear() &&
+                        d.getMonth() === today.getMonth() &&
+                        d.getDate() === today.getDate();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const isYesterday = d.getFullYear() === yesterday.getFullYear() &&
+                            d.getMonth() === yesterday.getMonth() &&
+                            d.getDate() === yesterday.getDate();
+
+        const formatted = d.toLocaleDateString('en-IN', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        });
+
+        if (isToday) return `Today · ${formatted}`;
+        if (isYesterday) return `Yesterday · ${formatted}`;
+        return formatted;
+      }
+    }
+  } catch (_) {}
+  return dateStr;
+}
+
 export function renderExpensesTab(trip, activeMemberId) {
+  if (!trip) return;
+
+  // Populate dynamic member filter options
+  const memberFilterSelect = document.getElementById('expenseMemberFilter');
+  if (memberFilterSelect) {
+    const currentVal = uiState.expenseMemberFilter || 'ALL';
+    const members = trip.members || [];
+    let opts = `<option value="ALL"${currentVal === 'ALL' ? ' selected' : ''}>👥 All Members</option>`;
+    for (const m of members) {
+      opts += `<option value="${escapeHtml(m.id)}"${currentVal === m.id ? ' selected' : ''}>Involving ${escapeHtml(m.name)}</option>`;
+    }
+    for (const m of members) {
+      const paidVal = `PAID:${m.id}`;
+      opts += `<option value="${escapeHtml(paidVal)}"${currentVal === paidVal ? ' selected' : ''}>Paid by ${escapeHtml(m.name)}</option>`;
+    }
+    memberFilterSelect.innerHTML = opts;
+    memberFilterSelect.value = currentVal;
+    if (memberFilterSelect.value !== currentVal) {
+      uiState.expenseMemberFilter = 'ALL';
+      memberFilterSelect.value = 'ALL';
+    }
+  }
+
+  const searchInput = document.getElementById('expenseSearchInput');
+  if (searchInput && document.activeElement !== searchInput) {
+    searchInput.value = uiState.expenseSearchQuery || '';
+  }
+
   // Render category filter chips
   const filterRow = document.getElementById('categoryFilterRow');
   const allChips = [{ id: 'ALL', label: 'All', icon: '✨' }, ...CONFIG.CATEGORIES];
@@ -174,33 +244,83 @@ export function renderExpensesTab(trip, activeMemberId) {
     `).join('');
   }
 
+  const searchQuery = (uiState.expenseSearchQuery || '').trim().toLowerCase();
+  const memberFilter = uiState.expenseMemberFilter || 'ALL';
+
   // Filter and sort expenses (newest date first, then newest createdAt)
   const activeExpenses = (trip.expenses || [])
     .filter(e => !e.deleted)
-    .filter(e => uiState.currentCategoryFilter === 'ALL' || e.category === uiState.currentCategoryFilter)
+    .filter(e => {
+      // 1. Category filter
+      if (uiState.currentCategoryFilter !== 'ALL' && e.category !== uiState.currentCategoryFilter) {
+        return false;
+      }
+
+      // 2. Member filter
+      if (memberFilter !== 'ALL') {
+        if (memberFilter.startsWith('PAID:')) {
+          const payerId = memberFilter.slice(5);
+          if (e.paidBy !== payerId) return false;
+        } else {
+          // Involving memberFilter
+          const isPayer = e.paidBy === memberFilter;
+          const isInSplits = Array.isArray(e.splits) && e.splits.some(s => s.memberId === memberFilter);
+          if (!isPayer && !isInSplits) return false;
+        }
+      }
+
+      // 3. Search query
+      if (searchQuery) {
+        const titleMatch = (e.title || '').toLowerCase().includes(searchQuery);
+        const catObj = CONFIG.CATEGORIES.find(c => c.id === e.category);
+        const catLabel = catObj ? catObj.label.toLowerCase() : (e.category || '').toLowerCase();
+        const catMatch = catLabel.includes(searchQuery) || (e.category || '').toLowerCase().includes(searchQuery);
+        const payerName = getMemberName(trip, e.paidBy).toLowerCase();
+        const payerMatch = payerName.includes(searchQuery);
+        const dishMatch = Array.isArray(e.items) && e.items.some(it => (it.name || '').toLowerCase().includes(searchQuery));
+
+        if (!titleMatch && !catMatch && !payerMatch && !dishMatch) {
+          return false;
+        }
+      }
+
+      return true;
+    })
     .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt - a.createdAt));
 
   const listEl = document.getElementById('expensesListContainer');
   if (!listEl) return;
   if (activeExpenses.length === 0) {
+    const isFiltered = uiState.currentCategoryFilter !== 'ALL' || !!searchQuery || memberFilter !== 'ALL';
     listEl.innerHTML = `
       <div class="card empty-state">
-        <div class="empty-icon">🧾</div>
-        <h3>No expenses here yet</h3>
-        <p style="margin-top:4px; font-size:0.85rem;">Tap "+ Add Expense" below to record a bill.</p>
+        <div class="empty-icon">${isFiltered ? '🔍' : '🧾'}</div>
+        <h3>${isFiltered ? 'No matching expenses' : 'No expenses here yet'}</h3>
+        <p style="margin-top:4px; font-size:0.85rem;">${isFiltered ? 'Try clearing your search or filters.' : 'Tap "+ Add Expense" below to record a bill.'}</p>
       </div>
     `;
     return;
   }
 
-  listEl.innerHTML = activeExpenses.map(exp => {
+  let html = '';
+  let currentDateGroup = null;
+
+  for (const exp of activeExpenses) {
+    const expDate = exp.date || '';
+    if (expDate !== currentDateGroup) {
+      currentDateGroup = expDate;
+      html += `<div class="expense-date-header">${formatDateGroupHeader(expDate)}</div>`;
+    }
+
     const catObj = CONFIG.CATEGORIES.find(c => c.id === exp.category) || CONFIG.CATEGORIES[5];
     const payerName = getMemberName(trip, exp.paidBy);
     const creatorName = getMemberName(trip, exp.createdBy);
     const canEdit = canModifyExpense(trip, exp, activeMemberId);
     const splitCount = (exp.splits || []).length;
+    const hasItems = exp.splitType === 'ITEMIZED' && Array.isArray(exp.items) && exp.items.length > 0;
+    const isExpanded = hasItems && (uiState.expandedItemizedExpIds || []).includes(exp.id);
 
-    return `
+    html += `
       <div class="expense-item">
         <div class="exp-left">
           <div class="cat-icon" title="${escapeHtml(catObj.label)}">${catObj.icon}</div>
@@ -209,7 +329,11 @@ export function renderExpensesTab(trip, activeMemberId) {
             <div class="exp-meta">
               <span>Paid by <strong>${escapeHtml(payerName)}</strong></span>
               <span>•</span>
-              <span>${exp.splitType === 'ITEMIZED' ? `🧾 Itemized (${(exp.items || []).length} items)` : `Split (${escapeHtml(String(exp.splitType || '').toLowerCase())}) among ${splitCount}`}</span>
+              ${hasItems ? `
+                <button type="button" class="badge badge-itemized-toggle" data-toggle-items="${escapeHtml(exp.id)}" aria-expanded="${isExpanded ? 'true' : 'false'}">🧾 Itemized (${exp.items.length} items)</button>
+              ` : `
+                <span>${exp.splitType === 'ITEMIZED' ? `🧾 Itemized (${(exp.items || []).length} items)` : `Split (${escapeHtml(String(exp.splitType || '').toLowerCase())}) among ${splitCount}`}</span>
+              `}
               <span>•</span>
               <span>${escapeHtml(exp.date)}</span>
             </div>
@@ -230,9 +354,37 @@ export function renderExpensesTab(trip, activeMemberId) {
             <div style="font-size:0.68rem; color:var(--text-light); margin-top:6px;" class="no-print">Read-only</div>
           `}
         </div>
+        ${hasItems ? `
+          <div class="expense-items-drawer" id="items-drawer-${escapeHtml(exp.id)}" style="display: ${isExpanded ? 'block' : 'none'};">
+            <div class="drawer-header">🧾 Who Ate What (Itemized Receipt)</div>
+            <div class="drawer-dish-list">
+              ${exp.items.map(it => `
+                <div class="drawer-dish-row">
+                  <div class="drawer-dish-left">
+                    <span class="drawer-dish-name">${escapeHtml(it.name || 'Untitled item')}</span>
+                    <span class="drawer-dish-sharers">${(it.sharedBy || []).map(id => `<span class="member-pill">${escapeHtml(getMemberName(trip, id))}</span>`).join(', ')}</span>
+                  </div>
+                  <div class="drawer-dish-price">${formatPaise(it.pricePaise)}</div>
+                </div>
+              `).join('')}
+            </div>
+            ${exp.taxTipPaise > 0 ? `
+              <div class="drawer-tax-row">
+                <span>Tax / Tip (${exp.taxSplitMode === 'PROPORTIONAL' ? 'By Share' : 'Equal'}): ${formatPaise(exp.taxTipPaise)}</span>
+              </div>
+            ` : ''}
+            ${canEdit ? `
+              <div class="drawer-actions no-print">
+                <button type="button" class="btn btn-secondary btn-sm" data-edit-exp="${escapeHtml(exp.id)}">✏️ Edit Who Ate What</button>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
       </div>
     `;
-  }).join('');
+  }
+
+  listEl.innerHTML = html;
 }
 
 export function renderSettlementTab(trip, settlementData) {

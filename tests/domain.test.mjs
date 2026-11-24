@@ -26,6 +26,7 @@ import {
 } from '../js/storage/storageAdapter.js';
 import { onRequestGet, onRequestPost } from '../functions/api/trips/[id]/sync.js';
 import { onRequestPost as onRequestPostReceiptScan } from '../functions/api/receipt/scan.js';
+import { generateTripPdfBytes } from '../js/ui/syncExport.js';
 
 test('CONFIG invariants', () => {
   assert.equal(CONFIG.APP_STORAGE_KEY, 'tripsplit_v1_state');
@@ -152,7 +153,7 @@ test('splits: calculateItemizedSplits 2 items with proportional taxTipPaise', ()
   ];
   const taxTipPaise = 4000;
 
-  const result = calculateItemizedSplits(items, taxTipPaise, ['mem_a', 'mem_b']);
+  const result = calculateItemizedSplits(items, taxTipPaise, ['mem_a', 'mem_b'], 'PROPORTIONAL');
   assert.equal(result.isValid, true);
   assert.equal(result.subtotalPaise, 40000);
   assert.equal(result.totalPaise, 44000);
@@ -166,8 +167,10 @@ test('splits: calculateItemizedSplits 2 items with proportional taxTipPaise', ()
   assert.ok(splitB);
   assert.equal(splitA.amountPaise, 27500); // 25000 + 2500
   assert.equal(splitA.metaValue, 25000);
+  assert.equal(splitA.taxSharePaise, 2500);
   assert.equal(splitB.amountPaise, 16500); // 15000 + 1500
   assert.equal(splitB.metaValue, 15000);
+  assert.equal(splitB.taxSharePaise, 1500);
 
   const sumSplits = result.splits.reduce((sum, s) => sum + s.amountPaise, 0);
   assert.equal(sumSplits, 44000);
@@ -176,11 +179,45 @@ test('splits: calculateItemizedSplits 2 items with proportional taxTipPaise', ()
   const viaDelegate = calculateSplits(44000, 'ITEMIZED', null, {
     items,
     taxTipPaise,
-    validMemberIds: ['mem_a', 'mem_b']
+    validMemberIds: ['mem_a', 'mem_b'],
+    taxSplitMode: 'PROPORTIONAL'
   });
   assert.equal(viaDelegate.isValid, true);
   assert.equal(viaDelegate.allocatedPaise, 44000);
   assert.deepEqual(viaDelegate.splits, result.splits);
+});
+
+test('splits: calculateItemizedSplits PROPORTIONAL vs EQUAL tax split modes', () => {
+  const items = [
+    { name: 'Pizza', pricePaise: 30000, sharedBy: ['mem_b', 'mem_a'] },
+    { name: 'Drink', pricePaise: 10000, sharedBy: ['mem_a'] }
+  ];
+  // Subtotals: mem_a has 25000, mem_b has 15000. Total subtotal: 40000.
+  const taxTipPaise = 4000;
+
+  // PROPORTIONAL mode: 2500 and 1500 tax
+  const propResult = calculateItemizedSplits(items, taxTipPaise, [], 'PROPORTIONAL');
+  assert.equal(propResult.isValid, true);
+  const propA = propResult.splits.find(s => s.memberId === 'mem_a');
+  const propB = propResult.splits.find(s => s.memberId === 'mem_b');
+  assert.equal(propA.metaValue, 25000);
+  assert.equal(propA.taxSharePaise, 2500);
+  assert.equal(propA.amountPaise, 27500);
+  assert.equal(propB.metaValue, 15000);
+  assert.equal(propB.taxSharePaise, 1500);
+  assert.equal(propB.amountPaise, 16500);
+
+  // Default EQUAL mode: 2000 and 2000 tax
+  const equalResult = calculateItemizedSplits(items, taxTipPaise, []);
+  assert.equal(equalResult.isValid, true);
+  const eqA = equalResult.splits.find(s => s.memberId === 'mem_a');
+  const eqB = equalResult.splits.find(s => s.memberId === 'mem_b');
+  assert.equal(eqA.metaValue, 25000);
+  assert.equal(eqA.taxSharePaise, 2000);
+  assert.equal(eqA.amountPaise, 27000);
+  assert.equal(eqB.metaValue, 15000);
+  assert.equal(eqB.taxSharePaise, 2000);
+  assert.equal(eqB.amountPaise, 17000);
 });
 
 test('splits: calculateItemizedSplits indivisible item and tax deterministic remainder distribution', () => {
@@ -577,6 +614,7 @@ test('storage: mergeTripInMemory preserves items and taxTipPaise on ITEMIZED exp
   const exp = trip.expenses[0];
 
   assert.equal(exp.splitType, 'ITEMIZED');
+  assert.equal(exp.taxSplitMode, 'EQUAL');
   assert.equal(exp.amountPaise, 4400);
   assert.equal(exp.taxTipPaise, 401);
   assert.equal(exp.items.length, 2);
@@ -1671,4 +1709,48 @@ test('backend sync: onRequestPost updates deleted column to 1 when a trip is del
   assert.equal(storedRow.deleted, 1);
   const storedJson = JSON.parse(storedRow.trip_json);
   assert.equal(storedJson.deleted, true);
+});
+
+test('pdf: generateTripPdfBytes returns valid PDF 1.4 Uint8Array', () => {
+  const sampleTrip = {
+    id: 'trip_sample_pdf',
+    name: 'Goa Weekend 2026',
+    members: [
+      { id: 'mem_1', name: 'Alice', isOrganizer: true },
+      { id: 'mem_2', name: 'Bob', isOrganizer: false }
+    ],
+    expenses: [
+      {
+        id: 'exp_1',
+        title: 'Seafood Shack Dinner',
+        category: 'Food',
+        date: '2026-11-15',
+        amountPaise: 250000,
+        paidBy: 'mem_1',
+        createdBy: 'mem_1',
+        splitType: 'ITEMIZED',
+        deleted: false,
+        items: [
+          { name: 'Grilled Fish', pricePaise: 150000, sharedBy: ['mem_1', 'mem_2'] },
+          { name: 'Prawn Curry', pricePaise: 80000, sharedBy: ['mem_2'] }
+        ],
+        taxTipPaise: 20000,
+        splits: [
+          { memberId: 'mem_1', amountPaise: 85000 },
+          { memberId: 'mem_2', amountPaise: 165000 }
+        ]
+      }
+    ],
+    settlements: []
+  };
+
+  const pdfBytes = generateTripPdfBytes(sampleTrip);
+  assert.ok(pdfBytes instanceof Uint8Array, 'Must return Uint8Array');
+  assert.ok(pdfBytes.length > 0, 'PDF bytes must not be empty');
+
+  const asciiText = Buffer.from(pdfBytes).toString('latin1');
+  assert.ok(asciiText.startsWith('%PDF-1.4'), 'ASCII header must start with %PDF-1.4');
+  assert.ok(asciiText.includes('Goa Weekend 2026'), 'Must include trip name');
+  assert.ok(asciiText.includes('Rs.'), 'Must include Rs.');
+  assert.ok(asciiText.endsWith('%%EOF'), 'Must end with %%EOF');
 });
